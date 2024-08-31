@@ -9,4 +9,6 @@ urlpatterns = [
          views.download_file, name='download_file'),
     path('download/<str:filename>/', views.download_file,
          {'path': ''}, name='download_file_root'),
+    path('thumbnails/<str:filename>/',
+         views.serve_thumbnail, name='serve_thumbnail'),
 ]

@@ -81,6 +81,16 @@
       <div>
         <h1>File Transfer</h1>
       </div>
+      <form method="GET" action="">
+        <label for="thumbnail_size">Thumbnail Size:</label>
+        <select name="thumbnail_size" id="thumbnail_size" onchange="this.form.submit()">
+          <option value="100" {% if thumbnail_size == 100 %}selected{% endif %}>100x100</option>
+          <option value="300" {% if thumbnail_size == 150 %}selected{% endif %}>300x300</option>
+          <option value="500" {% if thumbnail_size == 200 %}selected{% endif %}>500x500</option>
+          <option value="1000" {% if thumbnail_size == 200 %}selected{% endif %}>1000x1000</option>
+          <option value="3000" {% if thumbnail_size == 200 %}selected{% endif %}>2000x2000</option>
+      </select>
+      </form>
       <div>
         <button onclick="window.location.href='{% url 'file_list' %}'">
           Home
@@ -107,7 +117,12 @@
               <a href="{% url 'file_list' item.path|add:item.name|add:'/' %}"
                 >{{ item.name }}</a
               >
-              {% else %} {{ item.name }} {% endif %}
+              {% else %} {{ item.name }} {% if item.thumbnail %}
+              <img
+                src="{% url 'serve_thumbnail' item.thumbnail %}"
+                alt="Thumbnail"
+              />
+              {% endif %} {% endif %}
             </td>
             <td>{{ item.is_dir|yesno:"Directory,File" }}</td>
             <td>{{ item.size }}</td>
