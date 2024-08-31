@@ -11,12 +11,26 @@ BASE_DIR = 'D:\\'  # Change this to the base directory you want to start with
 
 
 def file_upload(request):
-    if request.method == 'POST' and request.FILES['file']:
-        uploaded_file = request.FILES['file']
-        with open(os.path.join(BASE_DIR, uploaded_file.name), 'wb+') as destination:
-            for chunk in uploaded_file.chunks():
-                destination.write(chunk)
-        return HttpResponse("File uploaded successfully.")
+    # Define the subdirectory within BASE_DIR
+    upload_dir = os.path.join(BASE_DIR, 'uploads')
+
+    # Create the directory if it doesn't exist
+    os.makedirs(upload_dir, exist_ok=True)
+
+    if request.method == 'POST' and request.FILES.getlist('files'):
+        uploaded_files = request.FILES.getlist('files')
+        uploaded_file_paths = []
+        for uploaded_file in uploaded_files:
+            file_path = os.path.join(upload_dir, uploaded_file.name)
+            with open(file_path, 'wb+') as destination:
+                for chunk in uploaded_file.chunks():
+                    destination.write(chunk)
+            # Print the file path to the console
+            print(f"File uploaded to: {file_path}")
+            uploaded_file_paths.append(file_path)
+
+        # Return the list of uploaded file paths to the user
+        return HttpResponse(f"Files uploaded successfully to: {', '.join(uploaded_file_paths)}")
     return render(request, 'upload.html')
 
 
