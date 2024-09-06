@@ -66,15 +66,137 @@
       a:hover {
         text-decoration: underline;
       }
+
+      /* Modal (popup) styles */
+      .modal {
+        display: none;
+        position: fixed;
+        z-index: 100;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        justify-content: center;
+        align-items: center;
+      }
+
+      .modal-content {
+        background-color: white;
+        padding: 20px;
+        border-radius: 5px;
+        text-align: center;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      }
+
+      .progress-bar {
+        width: 100%;
+        background-color: #f3f3f3;
+        border-radius: 5px;
+        margin: 20px 0;
+      }
+
+      .progress-bar-inner {
+        height: 20px;
+        width: 0;
+        background-color: #007bff;
+        border-radius: 5px;
+      }
+
+      .close-button {
+        background-color: #333;
+        color: white;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        margin-top: 20px;
+      }
+
+      .close-button:hover {
+        background-color: #555;
+      }
     </style>
   </head>
   <body>
     <h1>Upload Files</h1>
-    <form method="POST" enctype="multipart/form-data">
+    <form
+      method="POST"
+      enctype="multipart/form-data"
+      onsubmit="showPopup(event)"
+    >
       {% csrf_token %}
-      <input type="file" name="files" multiple />
+      <input type="file" id="fileInput" name="files" multiple />
       <button type="submit">Upload</button>
     </form>
     <a href="{% url 'file_list' %}">View Files</a>
+
+    <!-- Modal (popup) -->
+    <div id="uploadPopup" class="modal">
+      <div class="modal-content">
+        <p>Uploading, please wait...</p>
+        <div class="progress-bar">
+          <div id="progressBarInner" class="progress-bar-inner"></div>
+        </div>
+        <p id="progressText"></p>
+        <button class="close-button" onclick="closePopup()">Close</button>
+      </div>
+    </div>
+
+    <script>
+      let totalFiles = 0;
+      let currentFileIndex = 0;
+
+      function showPopup(event) {
+        const files = document.getElementById("fileInput").files;
+        totalFiles = files.length;
+
+        if (totalFiles > 0) {
+          event.preventDefault(); // Prevent the form from submitting immediately
+
+          document.getElementById("uploadPopup").style.display = "flex";
+          document.getElementById(
+            "progressText"
+          ).textContent = `Uploading 0 of ${totalFiles} files`;
+
+          // Simulate upload progress (replace with actual upload code if using XMLHttpRequest or Fetch API)
+          simulateUpload(files);
+        }
+      }
+
+      function simulateUpload(files) {
+        currentFileIndex = 0;
+        updateProgress(); // Initialize progress
+
+        // Simulate file upload one by one
+        let interval = setInterval(() => {
+          if (currentFileIndex < totalFiles) {
+            currentFileIndex++;
+            updateProgress();
+          } else {
+            clearInterval(interval);
+            document.forms[0].submit(); // Submit the form once the upload simulation is done
+          }
+        }, 1000); // Simulate file upload delay (1 second per file)
+      }
+
+      function updateProgress() {
+        const progressBar = document.getElementById("progressBarInner");
+        const progressText = document.getElementById("progressText");
+        const progress = (currentFileIndex / totalFiles) * 100;
+
+        progressBar.style.width = `${progress}%`;
+        progressText.textContent = `Uploading ${currentFileIndex} of ${totalFiles} files`;
+      }
+
+      function closePopup() {
+        document.getElementById("uploadPopup").style.display = "none";
+      }
+
+      // Automatically hide the popup when the page reloads (after upload completes)
+      window.onload = function () {
+        document.getElementById("uploadPopup").style.display = "none";
+      };
+    </script>
   </body>
 </html>

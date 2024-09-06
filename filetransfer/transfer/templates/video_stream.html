@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Video Stream</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        background-color: #f4f4f4;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        margin: 0;
+      }
+      video {
+        max-width: 100%;
+        height: auto;
+        border: 2px solid #333;
+        border-radius: 8px;
+      }
+      h1 {
+        margin-bottom: 20px;
+        font-size: 2em;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Streaming Video: {{ video_filename }}</h1>
+    <video controls>
+      <source
+        src="{% url 'stream_video' path=video_path filename=video_filename %}"
+        type="video/mp4"
+      />
+      Your browser does not support the video tag.
+    </video>
+  </body>
+</html>

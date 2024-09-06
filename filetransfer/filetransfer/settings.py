@@ -31,10 +31,14 @@ DEBUG = True
 
 ALLOWED_HOSTS = ['localhost',
                  '127.0.0.1',
-                 '192.168.0.82',]  # Add this line
+                 '192.168.0.82',
+                 ]  # Add this line
 
 
 # Application definition
+# Increase the number of allowed file uploads
+# Set this to a higher number as per your needs
+DATA_UPLOAD_MAX_NUMBER_FILES = 1000
 
 INSTALLED_APPS = [
     'django.contrib.admin',

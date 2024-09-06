@@ -11,4 +11,9 @@ urlpatterns = [
          {'path': ''}, name='download_file_root'),
     path('thumbnails/<str:filename>/',
          views.serve_thumbnail, name='serve_thumbnail'),
+    path('video/<path:path>/<str:filename>/',
+         views.video_stream_page, name='video_stream_page'),
+    path('stream/<path:path>/<str:filename>/',
+         views.stream_video, name='stream_video'),
+
 ]
