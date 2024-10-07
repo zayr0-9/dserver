@@ -234,17 +234,28 @@
                             {% else %} 
                                 {{ item.name }} 
                                 {% if item.thumbnail %}
-                                    <img src="{% url 'serve_thumbnail' item.thumbnail %}" alt="Thumbnail" />
-                                {% endif %} 
+                                    <img src="/transfer/thumbnails/{{ item.thumbnail }}" alt="Thumbnail" />
+                                {% endif %}
+            
+                                <!-- Add video player if the item is a video file -->
+                                {% if item.is_video %}
+                                    <video width="600" controls style="display: block; margin-top: 10px;">
+                                        <source src="/downloads/{{ item.relative_path }}" type="video/mp4">
+                                        Your browser does not support the video tag.
+                                    </video>
+                                {% endif %}
                             {% endif %}
                         </td>
                         <td>{{ item.is_dir|yesno:"Directory,File" }}</td>
                         <td>{{ item.size }}</td>
                         <td>{{ item.modified }}</td>
                         <td>
-                            <a href="{% if item.path %}{% url 'download_file' item.path item.name %}{% else %}{% url 'download_file_root' item.name %}{% endif %}" onclick="showPopup()">Download</a>
+                            <a href="/downloads/{{ item.relative_path }}" download onclick="showPopup()">Download</a>
+
+
                             {% if item.is_video %}
-                                <a href="{% if item.path %}{% url 'video_stream_page' path=item.path filename=item.name %}{% endif %}" style="margin-left: 10px;">Stream</a>
+                                <!-- Video Streaming Link -->
+                                <a href="/downloads/{{ item.relative_path }}" style="margin-left: 10px;">Stream</a>
                             {% endif %}
                         </td>
                     </tr>

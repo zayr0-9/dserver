@@ -7,14 +7,21 @@ import datetime
 from PIL import Image
 import shutil
 from wsgiref.util import FileWrapper
-from django.http import StreamingHttpResponse, Http404
+from django.http import StreamingHttpResponse, Http404, FileResponse
 from django.utils.http import http_date
 import mimetypes
 import re
 from moviepy.editor import VideoFileClip
+import py7zr
+import hashlib
+import subprocess
+from django.utils.encoding import smart_str
 
 
 BASE_DIR = 'D:\\'  # Change this to the base directory you want to start with
+BASE_DIR = 'D:\\'  # Adjust this according to your environment
+ARCHIVE_STORAGE_DIR = os.path.join(BASE_DIR, 'archive_storage')
+os.makedirs(ARCHIVE_STORAGE_DIR, exist_ok=True)
 
 
 def file_upload(request):
@@ -99,7 +106,8 @@ def file_list(request, path=''):
                         thumbnail_format = 'JPEG'
                         thumbnail_ext = '.jpg'
 
-                    thumbnail_filename = f"thumb_{os.path.basename(item)}{thumbnail_ext}"
+                    base_name, ext = os.path.splitext(os.path.basename(item))
+                    thumbnail_filename = f"thumb_{base_name}{thumbnail_ext}"
                     thumbnail_path = os.path.join(temp_dir, thumbnail_filename)
                     image.save(thumbnail_path, thumbnail_format)
                     item_info['thumbnail'] = thumbnail_filename
@@ -116,16 +124,16 @@ def file_list(request, path=''):
     return render(request, 'file_list.html', context)
 
 
-def serve_thumbnail(request, filename):
-    file_path = os.path.join(BASE_DIR, 'temp_thumbnails', filename)
-    if os.path.exists(file_path):
-        with open(file_path, 'rb') as f:
-            if filename.endswith('.png'):
-                content_type = 'image/png'
-            else:
-                content_type = 'image/jpeg'
-            return HttpResponse(f.read(), content_type=content_type)
-    raise Http404("Thumbnail does not exist")
+# def serve_thumbnail(request, filename):
+#     file_path = os.path.join(BASE_DIR, 'temp_thumbnails', filename)
+#     if os.path.exists(file_path):
+#         with open(file_path, 'rb') as f:
+#             if filename.endswith('.png'):
+#                 content_type = 'image/png'
+#             else:
+#                 content_type = 'image/jpeg'
+#             return HttpResponse(f.read(), content_type=content_type)
+#     raise Http404("Thumbnail does not exist")
 
 
 def download_file(request, path, filename):
@@ -135,48 +143,57 @@ def download_file(request, path, filename):
 
     if os.path.isdir(file_path):
         zip_subdir = filename
-        zip_filename = f"{zip_subdir}.zip"
+        zip_filename = f"{zip_subdir}.7z"
 
-        # Create a temporary file to store the zip
-        s = tempfile.TemporaryFile()
-        with zipfile.ZipFile(s, "w", zipfile.ZIP_DEFLATED) as zf:
-            for root, dirs, files in os.walk(file_path):
-                # Preserve the directory structure by using the relative path
-                relative_dir = os.path.relpath(
-                    root, os.path.join(file_path, '..'))
-                for file in files:
-                    file_full_path = os.path.join(root, file)
-                    # Create the correct arcname to preserve the subdirectory structure
-                    arcname = os.path.join(relative_dir, file)
-                    zf.write(file_full_path, arcname)
+        # Create 'temparchive' directory if it doesn't exist
+        temp_archive_dir = os.path.join(BASE_DIR, 'temparchive')
+        os.makedirs(temp_archive_dir, exist_ok=True)
 
-        s.seek(0)
-        response = StreamingHttpResponse(s, content_type='application/zip')
-        response['Content-Disposition'] = f'attachment; filename={zip_filename}'
+        # Create a unique subdirectory within 'temparchive' for this archive
+        unique_subdir = os.path.join(temp_archive_dir, zip_subdir)
+        os.makedirs(unique_subdir, exist_ok=True)
+
+        # Path to the archive file
+        archive_path = os.path.join(unique_subdir, zip_filename)
+
+        # Check if the archive already exists
+        if not os.path.exists(archive_path):
+            # Create the 7z archive
+            with py7zr.SevenZipFile(archive_path, 'w', filters=[{'id': py7zr.FILTER_COPY}]) as archive:
+                for root, dirs, files in os.walk(file_path):
+                    # Preserve the directory structure by using the relative path
+                    relative_dir = os.path.relpath(
+                        root, os.path.join(file_path, '..'))
+                    for file in files:
+                        file_full_path = os.path.join(root, file)
+                        # Add files to the archive, preserving the directory structure
+                        arcname = os.path.join(relative_dir, file)
+                        archive.write(file_full_path, arcname)
+
+        # Open the archive file for streaming the response
+        response = FileResponse(open(archive_path, 'rb'),
+                                as_attachment=True, filename=zip_filename)
+        response['Content-Type'] = 'application/x-7z-compressed'
+        # Indicate that the server accepts byte-range requests
+        response['Accept-Ranges'] = 'bytes'
         return response
-    else:
-        # Stream the file in chunks instead of loading it all at once
-        def file_iterator(file_name, chunk_size=8192):
-            with open(file_name, 'rb') as file:
-                while True:
-                    chunk = file.read(chunk_size)
-                    if not chunk:
-                        break
-                    yield chunk
 
-        response = StreamingHttpResponse(file_iterator(file_path))
-        response['Content-Type'] = 'application/force-download'
-        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    else:
+        # Open the file for streaming the response
+        response = FileResponse(open(file_path, 'rb'),
+                                as_attachment=True, filename=filename)
+        response['Content-Type'] = 'application/octet-stream'
+        # Indicate that the server accepts byte-range requests
+        response['Accept-Ranges'] = 'bytes'
         return response
 
 
 def stream_video(request, path, filename):
-    # file_path = os.path.join(BASE_DIR, path, filename)
     file_path = path
     if not os.path.exists(file_path):
         raise Http404("File does not exist")
 
-  # Get the file size and content type
+    # Get the file size and content type
     file_size = os.path.getsize(file_path)
     content_type, _ = mimetypes.guess_type(file_path)
 
@@ -194,10 +211,23 @@ def stream_video(request, path, filename):
     # Calculate the content length and the actual start and end of the content to serve
     content_length = (end - start) + 1
 
+    # Create a generator to stream the file in chunks
+    def file_stream(file, start, end, chunk_size=8192):
+        file.seek(start)
+        remaining_bytes = (end - start) + 1
+        while remaining_bytes > 0:
+            chunk = file.read(min(chunk_size, remaining_bytes))
+            if not chunk:
+                break
+            remaining_bytes -= len(chunk)
+            yield chunk
+
     try:
+        # Open the file and use a generator for streaming, without closing it prematurely
+        file = open(file_path, 'rb')
         response = StreamingHttpResponse(
-            FileWrapper(open(file_path, 'rb'), blksize=512),
-            content_type=content_type,
+            file_stream(file, start, end),
+            content_type=content_type
         )
         response['Content-Length'] = str(content_length)
         response['Content-Range'] = f'bytes {start}-{end}/{file_size}'
@@ -205,6 +235,8 @@ def stream_video(request, path, filename):
         response['Content-Disposition'] = f'inline; filename="{filename}"'
         response['Last-Modified'] = http_date(os.path.getmtime(file_path))
         response.status_code = 206  # Partial content
+
+        # Do not close the file here! Let Django handle it with StreamingHttpResponse
         return response
     except BrokenPipeError:
         print(
