@@ -10,9 +10,10 @@ __pycache__/
 .Python
 build/
 develop-eggs/
-/static/
+filetransfer/static/
 dist/
 downloads/
+myvenv/Scripts
 eggs/
 .eggs/
 lib/
