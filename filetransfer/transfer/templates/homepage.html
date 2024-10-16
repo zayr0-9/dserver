@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Server Homepage</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        background-color: #f4f4f9;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+      }
+      h1 {
+        margin-bottom: 30px;
+      }
+      .options {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
+      .option {
+        padding: 15px 30px;
+        background-color: #333;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        font-size: 18px;
+        cursor: pointer;
+      }
+      .option:hover {
+        background-color: #555;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Welcome to the Server</h1>
+    <div class="options">
+      <!-- File Mode -->
+      <button class="option" onclick="window.location.href='/files/'">File Mode</button>
+
+    
+      </button>
+
+        <!-- Theatre Mode -->
+        <button class="option" onclick="window.location.href='{% url 'theatre_mode' %}'">Theatre Mode</button>
+
+        <!-- Admin View (requires PIN) -->
+        <button class="option" onclick="window.location.href='{% url 'admin_pin_entry' %}'">Server Admin</button>
+    </div>
+  </body>
+</html>

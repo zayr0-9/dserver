@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Search Results</title>
+    <style>
+      body {
+        font-family: "Arial", sans-serif;
+        background-color: #f4f4f9;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+
+      .top-bar {
+        background-color: #333;
+        color: white;
+        padding: 15px 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100vw;
+      }
+
+      .top-bar h1 {
+        font-size: 1.8rem;
+      }
+
+      .top-bar form {
+        display: inline;
+      }
+
+      .top-bar input[type="text"] {
+        padding: 8px;
+        font-size: 1rem;
+        border-radius: 5px;
+        border: none;
+        outline: none;
+      }
+
+      .top-bar button {
+        background-color: #555;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        cursor: pointer;
+        border-radius: 5px;
+        font-size: 1rem;
+      }
+
+      .top-bar button:hover {
+        background-color: #777;
+      }
+
+      .container {
+        width: 100%;
+        max-width: 1200px;
+        padding: 20px;
+        box-sizing: border-box;
+      }
+
+      h2 {
+        font-size: 1.6rem;
+        margin-bottom: 20px;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+        background-color: white;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        font-size: 1rem;
+      }
+
+      th,
+      td {
+        padding: 15px;
+        text-align: left;
+        border-bottom: 1px solid #ddd;
+      }
+
+      th {
+        background-color: #f4f4f9;
+        font-weight: 600;
+      }
+
+      tr:hover {
+        background-color: #f1f1f1;
+      }
+
+      a {
+        color: #007bff;
+        text-decoration: none;
+      }
+
+      a:hover {
+        text-decoration: underline;
+      }
+
+      .upload-link {
+        display: inline-block;
+        margin-top: 20px;
+        background-color: #333;
+        color: white;
+        padding: 12px 24px;
+        text-decoration: none;
+        border-radius: 5px;
+        font-size: 1rem;
+        text-align: center;
+      }
+
+      .upload-link:hover {
+        background-color: #555;
+      }
+
+      @media (max-width: 768px) {
+        .top-bar {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+
+        .top-bar h1 {
+          font-size: 1.5rem;
+        }
+
+        table {
+          font-size: 0.9rem;
+        }
+
+        th,
+        td {
+          padding: 12px;
+        }
+
+        .upload-link {
+          font-size: 0.9rem;
+          padding: 10px 20px;
+        }
+      }
+
+      @media (max-width: 480px) {
+        .top-bar {
+          flex-direction: column;
+          align-items: flex-start;
+          padding: 10px;
+        }
+
+        .top-bar h1 {
+          font-size: 1.4rem;
+        }
+
+        table,
+        th,
+        td {
+          font-size: 0.85rem;
+          padding: 10px;
+        }
+
+        .upload-link {
+          font-size: 0.85rem;
+          padding: 8px 16px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="top-bar">
+      <h1>Search Results</h1>
+      <form method="GET" action="{% url 'search_files' %}">
+        <input
+          type="text"
+          name="q"
+          placeholder="Search files..."
+          value="{{ query }}"
+        />
+        <button type="submit">Search</button>
+      </form>
+      <button onclick="window.location.href='{% url 'file_list' %}'">
+        Home
+      </button>
+    </div>
+
+    <div class="container">
+      <h2>Showing results for: "{{ query }}"</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Size (bytes)</th>
+            <th>Last Modified</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in items %}
+          <tr>
+            <td>
+              {% if item.is_dir %}
+              <!-- Link to the directory if it is a directory -->
+              <a href="{% url 'file_list' item.file_path %}"
+                >{{ item.file_name }}</a
+              >
+              {% else %} {{ item.file_name }}
+
+              <!-- Inline video streaming if the file is a video -->
+              {% if item.is_video %}
+              <video
+                width="600"
+                controls
+                style="display: block; margin-top: 10px"
+              >
+                <source
+                  src="/downloads/{{ item.file_path }}"
+                  type="video/mp4"
+                />
+                Your browser does not support the video tag.
+              </video>
+              {% endif %} {% if item.thumbnail %}
+              <img
+                src="/transfer/thumbnails/{{ item.thumbnail }}"
+                alt="Thumbnail"
+              />
+              {% endif %} {% endif %}
+            </td>
+            <td>{{ item.is_dir|yesno:"Directory,File" }}</td>
+            <td>{{ item.file_size }}</td>
+            <td>{{ item.last_modified }}</td>
+            <td>
+              {% if not item.is_dir %}
+              <a href="/downloads/{{ item.file_path }}" download>Download</a>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </body>
+</html>

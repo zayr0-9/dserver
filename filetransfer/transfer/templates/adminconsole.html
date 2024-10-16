@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin Console</title>
+    <style>
+      body {
+        font-family: "Arial", sans-serif;
+        background-color: #f4f4f9;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+
+      .top-bar {
+        background-color: #333;
+        color: white;
+        padding: 15px 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100vw;
+      }
+
+      .top-bar h1 {
+        font-size: 1.8rem;
+      }
+
+      .container {
+        width: 100%;
+        max-width: 1200px;
+        padding: 20px;
+        box-sizing: border-box;
+      }
+
+      h2 {
+        font-size: 1.6rem;
+        margin-bottom: 20px;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+        background-color: white;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        font-size: 1rem;
+      }
+
+      th,
+      td {
+        padding: 15px;
+        text-align: left;
+        border-bottom: 1px solid #ddd;
+      }
+
+      th {
+        background-color: #f4f4f9;
+        font-weight: 600;
+      }
+
+      tr:hover {
+        background-color: #f1f1f1;
+      }
+
+      .status-button {
+        padding: 10px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+      }
+
+      .status-private {
+        background-color: grey;
+        color: white;
+      }
+
+      .status-public {
+        background-color: green;
+        color: white;
+      }
+
+      .upload-link {
+        display: inline-block;
+        margin-top: 20px;
+        background-color: #333;
+        color: white;
+        padding: 12px 24px;
+        text-decoration: none;
+        border-radius: 5px;
+        font-size: 1rem;
+        text-align: center;
+      }
+
+      .upload-link:hover {
+        background-color: #555;
+      }
+
+      /* Responsive styles */
+      @media (max-width: 768px) {
+        .top-bar {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+
+        .top-bar h1 {
+          font-size: 1.5rem;
+        }
+
+        table {
+          font-size: 0.9rem;
+        }
+
+        th,
+        td {
+          padding: 12px;
+        }
+
+        .upload-link {
+          font-size: 0.9rem;
+          padding: 10px 20px;
+        }
+      }
+
+      @media (max-width: 480px) {
+        .top-bar {
+          flex-direction: column;
+          align-items: flex-start;
+          padding: 10px;
+        }
+
+        .top-bar h1 {
+          font-size: 1.4rem;
+        }
+
+        table,
+        th,
+        td {
+          font-size: 0.85rem;
+          padding: 10px;
+        }
+
+        .upload-link {
+          font-size: 0.85rem;
+          padding: 8px 16px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="top-bar">
+      <h1>Admin Console</h1>
+      <button onclick="window.location.href='{% url 'file_list' %}'">
+        Home
+      </button>
+    </div>
+
+    <div class="container">
+      <h2>Manage Directories</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Size (bytes)</th>
+            <th>Last Modified</th>
+            <th>Actions</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in items %}
+          <tr>
+            <td>
+              {% if item.is_dir %}
+              <!-- Redirect back to adminconsole with the new directory path -->
+              <a
+                href="{% url 'adminconsole' %}?path={{ item.relative_path|urlencode }}"
+                >{{ item.name }}</a
+              >
+              {% else %} {{ item.name }} {% endif %}
+            </td>
+            <td>{{ item.is_dir|yesno:"Directory,File" }}</td>
+            <td>{{ item.size }}</td>
+            <td>{{ item.modified }}</td>
+            <td>
+              <!-- Directory visibility toggle button -->
+              <form method="POST" action="{% url 'toggle_visibility' %}">
+                {% csrf_token %}
+                <input
+                  type="hidden"
+                  name="path"
+                  value="{{ item.relative_path }}"
+                />
+                <input
+                  type="hidden"
+                  name="current_path"
+                  value="{{ current_path }}"
+                />
+                {% if item.is_public %}
+                <button type="submit" class="status-button status-public">
+                  Public
+                </button>
+                {% else %}
+                <button type="submit" class="status-button status-private">
+                  Private
+                </button>
+                {% endif %}
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </body>
+</html>
