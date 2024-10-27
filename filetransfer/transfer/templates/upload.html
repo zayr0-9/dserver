@@ -67,54 +67,28 @@
         text-decoration: underline;
       }
 
-      /* Modal (popup) styles */
-      .modal {
-        display: none;
-        position: fixed;
-        z-index: 100;
-        left: 0;
-        top: 0;
-        width: 100%;
-        height: 100%;
-        background-color: rgba(0, 0, 0, 0.5);
-        justify-content: center;
-        align-items: center;
-      }
-
-      .modal-content {
-        background-color: white;
-        padding: 20px;
-        border-radius: 5px;
-        text-align: center;
-        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-      }
-
+      /* Progress bar styles */
       .progress-bar {
         width: 100%;
+        max-width: 400px;
         background-color: #f3f3f3;
         border-radius: 5px;
-        margin: 20px 0;
+        height: 20px;
+        margin: 20px auto;
+        display: none; /* Hidden initially */
       }
 
       .progress-bar-inner {
-        height: 20px;
-        width: 0;
-        background-color: #007bff;
+        height: 100%;
+        width: 0%;
+        background-color: #4caf50;
         border-radius: 5px;
       }
 
-      .close-button {
-        background-color: #333;
-        color: white;
-        padding: 10px 20px;
-        border: none;
-        border-radius: 5px;
-        cursor: pointer;
-        margin-top: 20px;
-      }
-
-      .close-button:hover {
-        background-color: #555;
+      #progressText {
+        font-size: 14px;
+        margin-top: 10px;
+        text-align: center;
       }
     </style>
   </head>
@@ -123,7 +97,7 @@
     <form
       method="POST"
       enctype="multipart/form-data"
-      onsubmit="showPopup(event)"
+      onsubmit="startUpload(event)"
     >
       {% csrf_token %}
       <input type="file" id="fileInput" name="files" multiple />
@@ -131,72 +105,121 @@
     </form>
     <a href="{% url 'file_list' %}">View Files</a>
 
-    <!-- Modal (popup) -->
-    <div id="uploadPopup" class="modal">
-      <div class="modal-content">
-        <p>Uploading, please wait...</p>
-        <div class="progress-bar">
-          <div id="progressBarInner" class="progress-bar-inner"></div>
-        </div>
-        <p id="progressText"></p>
-        <button class="close-button" onclick="closePopup()">Close</button>
-      </div>
+    <!-- Progress bar -->
+    <div class="progress-bar" id="progressContainer">
+      <div id="progressBarInner" class="progress-bar-inner"></div>
     </div>
+    <p id="progressText"></p>
 
     <script>
       let totalFiles = 0;
-      let currentFileIndex = 0;
+      let uploadedFiles = 0; // Track the number of files that have fully uploaded
+      let totalBytes = 0; // Total size of all files
+      let uploadedBytes = 0; // Total bytes uploaded so far
 
-      function showPopup(event) {
+      function startUpload(event) {
+        event.preventDefault(); // Prevent form submission
+
         const files = document.getElementById("fileInput").files;
         totalFiles = files.length;
+        uploadedFiles = 0; // Reset uploaded count
+        totalBytes = 0;
+        uploadedBytes = 0;
+
+        // Calculate totalBytes
+        for (let i = 0; i < files.length; i++) {
+          totalBytes += files[i].size;
+        }
 
         if (totalFiles > 0) {
-          event.preventDefault(); // Prevent the form from submitting immediately
-
-          document.getElementById("uploadPopup").style.display = "flex";
+          document.getElementById("progressContainer").style.display = "block"; // Show progress bar
           document.getElementById(
             "progressText"
           ).textContent = `Uploading 0 of ${totalFiles} files`;
 
-          // Simulate upload progress (replace with actual upload code if using XMLHttpRequest or Fetch API)
-          simulateUpload(files);
+          uploadFiles(files); // Start the upload process
         }
       }
 
-      function simulateUpload(files) {
-        currentFileIndex = 0;
-        updateProgress(); // Initialize progress
+      function uploadFiles(files) {
+        // Loop through each file and upload one by one
+        Array.from(files).forEach((file, index) => {
+          const formData = new FormData();
+          formData.append("files", file);
+          formData.append("csrfmiddlewaretoken", "{{ csrf_token }}");
 
-        // Simulate file upload one by one
-        let interval = setInterval(() => {
-          if (currentFileIndex < totalFiles) {
-            currentFileIndex++;
-            updateProgress();
-          } else {
-            clearInterval(interval);
-            document.forms[0].submit(); // Submit the form once the upload simulation is done
-          }
-        }, 1000); // Simulate file upload delay (1 second per file)
+          const xhr = new XMLHttpRequest();
+
+          xhr.open("POST", window.location.href, true); // Send the request to the current URL
+
+          // Initialize previousLoaded to keep track of uploaded bytes for this file
+          let previousLoaded = 0;
+
+          xhr.upload.onprogress = function (event) {
+            if (event.lengthComputable) {
+              // Calculate the bytes uploaded since the last progress event
+              const delta = event.loaded - previousLoaded;
+              previousLoaded = event.loaded;
+
+              // Update the total uploaded bytes
+              uploadedBytes += delta;
+
+              // Update progress bar
+              updateProgressBytes(uploadedBytes);
+            }
+          };
+
+          // When the upload completes for a file
+          xhr.onload = function () {
+            if (xhr.status === 200) {
+              uploadedFiles++; // Increment the uploaded files count
+
+              // If all files are uploaded, hide the progress bar
+              if (uploadedFiles === totalFiles) {
+                closeProgressBar();
+              }
+            }
+          };
+
+          // Send the request with the file data
+          xhr.send(formData);
+        });
       }
 
-      function updateProgress() {
+      function updateProgressBytes(uploadedBytes) {
         const progressBar = document.getElementById("progressBarInner");
         const progressText = document.getElementById("progressText");
-        const progress = (currentFileIndex / totalFiles) * 100;
 
-        progressBar.style.width = `${progress}%`;
-        progressText.textContent = `Uploading ${currentFileIndex} of ${totalFiles} files`;
+        // Calculate the overall progress based on the total bytes uploaded
+        const overallProgress = (uploadedBytes / totalBytes) * 100;
+
+        progressBar.style.width = `${overallProgress}%`;
+        progressText.textContent = `Uploading ${uploadedFiles} of ${totalFiles} files (${Math.round(
+          overallProgress
+        )}%)`;
       }
 
-      function closePopup() {
-        document.getElementById("uploadPopup").style.display = "none";
+      function closeProgressBar() {
+        document.getElementById("progressContainer").style.display = "none";
+        document.getElementById("progressText").textContent =
+          "Upload complete!";
       }
+    </script>
 
-      // Automatically hide the popup when the page reloads (after upload completes)
-      window.onload = function () {
-        document.getElementById("uploadPopup").style.display = "none";
-      };
+    <!-- Include Socket.IO script -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+      const socket = io("http://localhost:3000");
+
+      // Listen for upload success notifications
+      socket.on("notification", function (message) {
+        alert(message); // Display the success message to the user
+      });
+
+      // Listen for file upload progress (optional)
+      socket.on("progress", function (data) {
+        console.log(`Upload progress: ${data.percentage}%`);
+      });
     </script>
   </body>
 </html>

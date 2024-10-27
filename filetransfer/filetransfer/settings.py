@@ -12,6 +12,8 @@ https://docs.djangoproject.com/en/5.0/ref/settings/
 
 from pathlib import Path
 import os
+
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -25,6 +27,16 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-e5d&2n#p01eerc^&35$@7@6d51lw2(a2#-y0@m^5p72k*954q('
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+PROJECT_ROOT = os.path.dirname(os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__))))
+
+STATICFILES_DIRS = [
+    # React build static directory
+    os.path.join(PROJECT_ROOT, 'frontend', 'build', 'static'),
+]
+
+
+# Get the project root (one level above BASE_DIR)
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -48,7 +60,8 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'transfer'
+    'transfer',
+    'corsheaders',
 ]
 
 MIDDLEWARE = [
@@ -59,14 +72,38 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
+
 ]
 
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'file': {
+            'level': 'DEBUG',
+            'class': 'logging.FileHandler',
+            # Store logs in debug.log in the project root
+            'filename': os.path.join(BASE_DIR, 'debug.log'),
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['file'],
+            'level': 'DEBUG',
+            'propagate': True,
+        },
+    },
+}
+# Allow all origins or specify allowed origins
+CORS_ALLOW_ALL_ORIGINS = True  # You can set it to True temporarily
 ROOT_URLCONF = 'filetransfer.urls'
 
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [os.path.join(BASE_DIR, 'transfer/templates')],
+        'DIRS': [os.path.join(BASE_DIR, 'transfer/templates'),
+                 os.path.join(PROJECT_ROOT, 'frontend', 'build'),],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [

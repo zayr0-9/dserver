@@ -1,35 +1,32 @@
-from django.http import Http404
-from django.shortcuts import render, redirect
-from django.http import HttpResponse, Http404, HttpResponseRedirect
+from django.http import JsonResponse
+from django.core.paginator import Paginator
+from django.shortcuts import render, redirect, get_object_or_404
+from django.http import HttpResponse, Http404, HttpResponseRedirect, StreamingHttpResponse, FileResponse, JsonResponse
 import os
-import zipfile
-import tempfile
 import datetime
-from PIL import Image
 import shutil
-from wsgiref.util import FileWrapper
-from django.http import StreamingHttpResponse, Http404, FileResponse
-from django.utils.http import http_date
-import mimetypes
 import re
-from moviepy.editor import VideoFileClip
-import py7zr
-import hashlib
+import mimetypes
 import subprocess
-from django.utils.encoding import smart_str
+import requests
+import json
+from PIL import Image
+from django.utils.http import http_date
+from moviepy.editor import VideoFileClip
 from urllib.parse import quote
-from django.shortcuts import render
-from transfer.models import FileMetadata
+from transfer.models import FileMetadata, Movie
 from django.db.models import Q
-from django.contrib.postgres.search import SearchQuery, SearchRank, SearchVector
-from .models import Directory
+from .models import Directory, Movie
+from django.views.decorators.clickjacking import xframe_options_exempt
+from django.views.decorators.csrf import csrf_exempt
+import logging
+from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 BASE_DIR = 'D:\\'  # Change this to the base directory you want to start with
-BASE_DIR = 'D:\\'  # Adjust this according to your environment
-ARCHIVE_STORAGE_DIR = os.path.join(BASE_DIR, 'archive_storage')
-os.makedirs(ARCHIVE_STORAGE_DIR, exist_ok=True)
-ADMIN_PIN = "123456"
+ADMIN_PIN = "1234"
 
 
 def file_upload(request):
@@ -47,23 +44,42 @@ def file_upload(request):
                 for chunk in uploaded_file.chunks():
                     destination.write(chunk)
 
+            # Process video files for thumbnails
             if uploaded_file.name.lower().endswith(('.mp4', '.avi', '.mov', '.webm', '.mkv')):
-                clip = VideoFileClip(file_path)
-                frame = clip.get_frame(t=1)  # Get frame at 1 second
-                img = Image.fromarray(frame)
-                img.thumbnail((100, 100))
-                thumbnail_path = os.path.join(
-                    upload_dir, f'thumb_{uploaded_file.name}.jpg')
-                img.save(thumbnail_path, 'JPEG')
-                thumbnails.append(os.path.basename(thumbnail_path))
+                clip = None
+                try:
+                    clip = VideoFileClip(file_path)
+                    frame = clip.get_frame(t=1)  # Get frame at 1 second
+                    img = Image.fromarray(frame)
+                    img.thumbnail((100, 100))
+                    thumbnail_path = os.path.join(
+                        upload_dir, f'thumb_{uploaded_file.name}.jpg')
+                    img.save(thumbnail_path, 'JPEG')
+                    thumbnails.append(os.path.basename(thumbnail_path))
+                except Exception as e:
+                    print(f"Error processing video {uploaded_file.name}: {e}")
+                finally:
+                    if clip:
+                        clip.reader.close()  # Ensure the video reader is closed
+                        clip.close()  # Close the video clip explicitly
 
             uploaded_file_paths.append(file_path)
+
+        # Send notification to Node.js server
+        try:
+            response = requests.post('http://localhost:3000/upload-success',
+                                     data=json.dumps(
+                                         {'message': 'File upload successful!'}),
+                                     headers={'Content-Type': 'application/json'})
+        except requests.ConnectionError as e:
+            print(f"Node.js server connection failed: {e}")
 
         # Return the list of uploaded file paths and thumbnails
         return render(request, 'upload.html', {
             'file_paths': uploaded_file_paths,
             'thumbnails': thumbnails
         })
+
     return render(request, 'upload.html')
 
 
@@ -283,15 +299,6 @@ def download_file(request, path, filename):
     response['Accept-Ranges'] = 'bytes'
     return response
 
-    # else:
-    #     # Open the file for streaming the response
-    #     response = FileResponse(open(file_path, 'rb'),
-    #                             as_attachment=True, filename=filename)
-    #     response['Content-Type'] = 'application/octet-stream'
-    #     # Indicate that the server accepts byte-range requests
-    #     response['Accept-Ranges'] = 'bytes'
-    #     return response
-
 
 def stream_video(request, path, filename):
     file_path = path
@@ -361,6 +368,10 @@ def video_stream_page(request, path, filename):
 
 
 def homepage(request):
+    PROJECT_ROOT = os.path.dirname(os.path.dirname(
+        os.path.dirname(os.path.abspath(__file__))))
+    x = os.path.join(PROJECT_ROOT, 'frontend', 'build')
+    print(x)
     return render(request, 'homepage.html')
 
 
@@ -444,3 +455,140 @@ def toggle_visibility(request):
 
     # Redirect back to the current directory in the admin console
     return redirect(f'/serveradmin/?path={current_path}')
+
+# react stuff
+
+
+# def theatre_view(request):
+#     search_query = request.GET.get('q', '')
+
+#     if search_query:
+#         # Filter movies by search query
+#         movies = Movie.objects.filter(movie_name__icontains=search_query)
+#     else:
+#         # Show all movies
+#         movies = Movie.objects.all()
+
+#     return render(request, 'theatre.html', {'movies': movies})
+
+
+def index(request):
+    return render(request, 'frontend/build/index.html')
+
+
+def video_list(request):
+    try:
+        search_query = request.GET.get('q', '')
+        fields = ['id', 'file_name', 'movie_name', 'file_path',
+                  'length', 'added_to_favorites', 'last_position']
+
+        # Get all public directories from the Directory model
+        public_dirs = Directory.objects.values_list('path', flat=True)
+        # Log the list of public directories
+        public_dirs = [path.replace(
+            'D:/', '').replace('\\', '/') for path in public_dirs]
+        # for x in public_dirs:
+        #     x = x.replace(
+        #         'D:/', '').replace('\\', '/')
+        #     print(x)
+        # for y in public_dirs:
+        #     print(y)
+
+        # Filter for movies that have public directories in their path
+        movies = Movie.objects.all().values(*fields)
+        accessible_movies = []
+
+        for movie in movies:
+            movie_path = Path(movie['file_path'])
+            # Log each movie path being checked
+            # print(f"Checking movie path: {movie_path}")
+
+            # Check each parent directory of the movie file path
+            is_accessible = False
+            for parent in movie_path.parents:
+                # Log each parent path being checked
+                print(f"Checking parent directory: {parent}")
+                if str(parent) in public_dirs:
+                    is_accessible = True
+                    # print("\n yes its true this path is public -----\n")
+                    break
+
+            # Add movie to accessible list if it has a public directory in its path
+            if is_accessible:
+                movie['relative_path'] = movie['file_path'].replace(
+                    'D:/', '').replace('\\', '/')
+
+                # accessible_movies.append(movie)
+        for y in public_dirs:
+            print(y)
+        # Filter movies by search query if provided
+        if search_query:
+            accessible_movies = [movie for movie in accessible_movies if search_query.lower(
+            ) in movie['movie_name'].lower()]
+
+        return JsonResponse(accessible_movies, safe=False)
+    except Exception as e:
+        logger.error(f"Error in video_list: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@xframe_options_exempt
+@csrf_exempt
+def stream_video_by_id(request, id):
+    movie = get_object_or_404(Movie, id=id)
+    file_path = movie.file_path
+    filename = movie.file_name
+
+    if not os.path.exists(file_path):
+        raise Http404("File does not exist")
+
+    # Get the file size and content type
+    file_size = os.path.getsize(file_path)
+    content_type, _ = mimetypes.guess_type(file_path)
+
+    # Determine the range request
+    range_header = request.headers.get('Range', '').strip()
+    range_match = re.match(r'bytes=(\d+)-(\d*)', range_header)
+    if range_match:
+        start = int(range_match.group(1))
+        end = range_match.group(2)
+        end = int(end) if end else file_size - 1
+    else:
+        start = 0
+        end = file_size - 1
+
+    # Calculate the content length and the actual start and end of the content to serve
+    content_length = (end - start) + 1
+
+    # Create a generator to stream the file in chunks
+    def file_stream(file, start, end, chunk_size=8192):
+        file.seek(start)
+        remaining_bytes = (end - start) + 1
+        while remaining_bytes > 0:
+            chunk = file.read(min(chunk_size, remaining_bytes))
+            if not chunk:
+                break
+            remaining_bytes -= len(chunk)
+            yield chunk
+        file.close()  # Close the file when done
+
+    try:
+        # Open the file and use a generator for streaming
+        file = open(file_path, 'rb')
+        response = StreamingHttpResponse(
+            file_stream(file, start, end),
+            content_type=content_type
+        )
+        response['Access-Control-Allow-Origin'] = '*'  # Allow all origins
+        response['Content-Length'] = str(content_length)
+        response['Content-Range'] = f'bytes {start}-{end}/{file_size}'
+        response['Accept-Ranges'] = 'bytes'
+        response['Content-Disposition'] = f'inline; filename="{filename}"'
+        response['Last-Modified'] = http_date(os.path.getmtime(file_path))
+        response.status_code = 206  # Partial content
+
+        return response
+    except BrokenPipeError:
+        print(
+            f"Client disconnected during streaming: {request.META.get('REMOTE_ADDR')}")
+        return HttpResponse(status=200)  # Return a simple OK response
