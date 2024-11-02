@@ -40,6 +40,8 @@ develop-eggs/
 filetransfer/static/
 downloads/
 myvenv/Scripts
+filetransfer/temp_thumbnails/
+nginx-rtmp-win32-1.2.1/conf/dynamic_drives.conf
 eggs/
 .eggs/
 lib/

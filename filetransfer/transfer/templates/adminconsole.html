@@ -201,12 +201,31 @@
                   value="{{ current_path }}"
                 />
                 {% if item.is_public %}
-                <button type="submit" class="status-button status-public">
-                  Public
+                <button
+                  type="submit"
+                  value="false"
+                  class="status-button status-public"
+                ></button>
+                Public
+                <button
+                  type="submit"
+                  name="include_children"
+                  value="true"
+                  class="status-button status-public"
+                >
+                  Public with Children
                 </button>
                 {% else %}
                 <button type="submit" class="status-button status-private">
                   Private
+                </button>
+                <button
+                  type="submit"
+                  value="false"
+                  name="include_children"
+                  class="status-button status-private"
+                >
+                  Public with Children
                 </button>
                 {% endif %}
               </form>

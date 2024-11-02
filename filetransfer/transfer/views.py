@@ -21,11 +21,15 @@ from django.views.decorators.clickjacking import xframe_options_exempt
 from django.views.decorators.csrf import csrf_exempt
 import logging
 from pathlib import Path
+from urllib.parse import unquote, quote
+import string
+from ctypes import windll
+from django.conf import settings
 
-logger = logging.getLogger(__name__)
+# logger = logging.getLogger(__name__)
 
 
-BASE_DIR = 'D:\\'  # Change this to the base directory you want to start with
+BASE_DIR = 'C:\\'  # Change this to the base directory you want to start with
 ADMIN_PIN = "1234"
 
 
@@ -122,54 +126,84 @@ def search_files(request):
     return render(request, 'search_results.html', context)
 
 
-BASE_DIR = 'D:\\'  # Adjust this to your base directory
+def drives(request):
+    drives = get_drives()
+    context = {
+        'drives': drives,
+    }
+    return render(request, 'drivelist.html', context)
 
 
-def file_list(request, path=''):
-    full_path = os.path.normpath(os.path.join(BASE_DIR, path))
-    print(f"path to find  =  {full_path}")
-    # Check if the directory exists on the file system
+def get_drives():
+    drives = []
+    bitmask = windll.kernel32.GetLogicalDrives()
+    for letter in string.ascii_uppercase:
+        if bitmask & 1:
+            drives.append(letter)
+        bitmask >>= 1
+    return drives
+
+
+def file_list(request, base_dir='', path=''):
+    base_dir = unquote(base_dir)
+    path = unquote(path).lstrip('/\\')
+
+    if not base_dir:
+        return redirect('drives')
+
+    base_dir_with_drive = f"{base_dir}:\\"
+
+    full_path = os.path.normpath(os.path.join(base_dir_with_drive, path))
+    print(f"Base dir: {base_dir}")
+    print(f"Base dir with drive: {base_dir_with_drive}")
+    print(f"Path: {path}")
+    print(f"Full path to find = {full_path}")
+
+    # Ensure the path exists and is within the base_dir
     if not os.path.exists(full_path):
         raise Http404("Directory does not exist")
 
+    if not full_path.startswith(os.path.normpath(base_dir)):
+        raise Http404("Access denied")
+
     # Check if the directory is not in the Directory model (indicating it's private)
     directory_entry = Directory.objects.filter(path=full_path).first()
-    print(f"all objects - ")
-    for directory in Directory.objects.all():
-        print(directory.path)
 
-    print(f"d entry =  {directory_entry}")
     # If the directory is private (not in the Directory model), ask for admin PIN
     if not directory_entry and not request.session.get(f'admin_pin_valid_{path}', False):
-        print("private directory asking for pin \n")
+        print("Private directory asking for PIN\n")
         if request.method == 'POST':
             # Handle PIN submission
             entered_pin = request.POST.get('pin', None)
-            if entered_pin == ADMIN_PIN:  # Replace 'admin_pin' with the actual admin PIN
+            if entered_pin == ADMIN_PIN:
                 # Save the valid PIN in the session
                 request.session[f'admin_pin_valid_{path}'] = True
             else:
                 return render(request, 'file_list.html', {
-                    'items': [],  # No items until PIN is validated
+                    'items': [],
                     'current_path': path,
+                    'base_dir': base_dir,
                     'thumbnail_size': 100,
-                    'is_private': True,  # Show the modal
-                    'pin_error': 'Incorrect PIN. Please try again.'
+                    'is_private': True,
+                    'pin_error': 'Incorrect PIN. Please try again.',
+                    'q': request.GET.get('q', '')
                 })
 
         # Show the PIN entry popup if the PIN is not already submitted
         return render(request, 'file_list.html', {
-            'items': [],  # No items until PIN is validated
+            'items': [],
             'current_path': path,
+            'base_dir': base_dir,
             'thumbnail_size': 100,
-            'is_private': True,  # Show the modal
+            'is_private': True,
+            'q': request.GET.get('q', '')
         })
 
     # Default size is 100x100 for thumbnails
     thumbnail_size = int(request.GET.get('thumbnail_size', 100))
 
     # Temporary thumbnail directory
-    temp_dir = os.path.join(BASE_DIR, 'temp_thumbnails')
+    temp_dir = os.path.join(settings.BASE_DIR, 'temp_thumbnails')
     shutil.rmtree(temp_dir, ignore_errors=True)
     os.makedirs(temp_dir, exist_ok=True)
 
@@ -186,7 +220,7 @@ def file_list(request, path=''):
             'path': path,
             'relative_path': relative_path,
             'is_dir': os.path.isdir(item_path),
-            'size': os.path.getsize(item_path),
+            'size': os.path.getsize(item_path) if os.path.isfile(item_path) else None,
             'modified': datetime.datetime.fromtimestamp(os.path.getmtime(item_path)),
             'thumbnail': None,
             'is_video': is_video
@@ -219,8 +253,10 @@ def file_list(request, path=''):
     context = {
         'items': items,
         'current_path': path,
+        'base_dir': base_dir,
         'thumbnail_size': thumbnail_size,
         'is_private': False,  # Directory is not private if it reached here
+        'q': request.GET.get('q', '')
     }
     return render(request, 'file_list.html', context)
 
@@ -440,18 +476,40 @@ def toggle_visibility(request):
         full_path = os.path.normpath(os.path.join(
             BASE_DIR, path))  # Normalize the path
         current_path = request.POST.get('current_path')
+        # Check if "children" is included
+        include_children = request.POST.get('include_children') == 'true'
+
         print(f"path of private file to be added = {full_path}")
+
         # Check if the directory is already public (exists in Directory table)
         directory = Directory.objects.filter(path=full_path).first()
 
         if directory:
-            # If it's public, remove it from the Directory table (set it to private)
-            print("dir private")
-            directory.delete()
+            # If it's public, remove it (and optionally, all subdirectories) from the Directory table (set to private)
+            print("Setting directory to private")
+            if include_children:
+                print("Setting all subdirectories to private")
+                Directory.objects.filter(path__startswith=full_path).delete()
+            else:
+                directory.delete()
         else:
-            # If it's private, add it to the Directory table (set it to public)
-            print("dir public")
+            # If it's private, add it (and optionally, all subdirectories) to the Directory table (set to public)
+            print("Setting directory to public")
+            # Create entry for main directory
             Directory.objects.create(path=full_path)
+
+            if include_children:
+                print("Setting all subdirectories to public")
+                for root, dirs, _ in os.walk(path):
+                    for sub_dir in dirs:
+                        sub_dir_path = os.path.join(root, sub_dir)
+                        # normalized_sub_dir_path = os.path.relpath(
+                        #     sub_dir_path, BASE_DIR)
+                        # print(sub_dir_path)
+                        Directory.objects.create(path=sub_dir_path)
+
+    # Redirect back to the current directory in the admin console
+    return redirect(f'/serveradmin/?path={current_path}')
 
     # Redirect back to the current directory in the admin console
     return redirect(f'/serveradmin/?path={current_path}')
@@ -477,50 +535,40 @@ def index(request):
 
 
 def video_list(request):
+    print("WORKING")
     try:
         search_query = request.GET.get('q', '')
         fields = ['id', 'file_name', 'movie_name', 'file_path',
                   'length', 'added_to_favorites', 'last_position']
 
-        # Get all public directories from the Directory model
+        # Get all public directories from the Directory model and normalize paths
         public_dirs = Directory.objects.values_list('path', flat=True)
-        # Log the list of public directories
-        public_dirs = [path.replace(
-            'D:/', '').replace('\\', '/') for path in public_dirs]
-        # for x in public_dirs:
-        #     x = x.replace(
-        #         'D:/', '').replace('\\', '/')
-        #     print(x)
-        # for y in public_dirs:
-        #     print(y)
+        public_dirs = [str(Path(path).resolve())
+                       for path in public_dirs]  # Normalize with Path.resolve()
+
+        # Log the list of normalized public directories
+        print("Normalized public directories:", public_dirs)
 
         # Filter for movies that have public directories in their path
         movies = Movie.objects.all().values(*fields)
         accessible_movies = []
 
         for movie in movies:
-            movie_path = Path(movie['file_path'])
-            # Log each movie path being checked
-            # print(f"Checking movie path: {movie_path}")
+            # Normalize movie path
+            movie_path = Path(movie['file_path']).resolve()
+            is_accessible = False
 
             # Check each parent directory of the movie file path
-            is_accessible = False
             for parent in movie_path.parents:
-                # Log each parent path being checked
-                print(f"Checking parent directory: {parent}")
                 if str(parent) in public_dirs:
                     is_accessible = True
-                    # print("\n yes its true this path is public -----\n")
                     break
 
             # Add movie to accessible list if it has a public directory in its path
             if is_accessible:
-                movie['relative_path'] = movie['file_path'].replace(
-                    'D:/', '').replace('\\', '/')
+                movie['relative_path'] = movie_path.as_posix().replace('D:/', '')
+                accessible_movies.append(movie)
 
-                # accessible_movies.append(movie)
-        for y in public_dirs:
-            print(y)
         # Filter movies by search query if provided
         if search_query:
             accessible_movies = [movie for movie in accessible_movies if search_query.lower(
@@ -530,65 +578,3 @@ def video_list(request):
     except Exception as e:
         logger.error(f"Error in video_list: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
-
-
-@xframe_options_exempt
-@csrf_exempt
-def stream_video_by_id(request, id):
-    movie = get_object_or_404(Movie, id=id)
-    file_path = movie.file_path
-    filename = movie.file_name
-
-    if not os.path.exists(file_path):
-        raise Http404("File does not exist")
-
-    # Get the file size and content type
-    file_size = os.path.getsize(file_path)
-    content_type, _ = mimetypes.guess_type(file_path)
-
-    # Determine the range request
-    range_header = request.headers.get('Range', '').strip()
-    range_match = re.match(r'bytes=(\d+)-(\d*)', range_header)
-    if range_match:
-        start = int(range_match.group(1))
-        end = range_match.group(2)
-        end = int(end) if end else file_size - 1
-    else:
-        start = 0
-        end = file_size - 1
-
-    # Calculate the content length and the actual start and end of the content to serve
-    content_length = (end - start) + 1
-
-    # Create a generator to stream the file in chunks
-    def file_stream(file, start, end, chunk_size=8192):
-        file.seek(start)
-        remaining_bytes = (end - start) + 1
-        while remaining_bytes > 0:
-            chunk = file.read(min(chunk_size, remaining_bytes))
-            if not chunk:
-                break
-            remaining_bytes -= len(chunk)
-            yield chunk
-        file.close()  # Close the file when done
-
-    try:
-        # Open the file and use a generator for streaming
-        file = open(file_path, 'rb')
-        response = StreamingHttpResponse(
-            file_stream(file, start, end),
-            content_type=content_type
-        )
-        response['Access-Control-Allow-Origin'] = '*'  # Allow all origins
-        response['Content-Length'] = str(content_length)
-        response['Content-Range'] = f'bytes {start}-{end}/{file_size}'
-        response['Accept-Ranges'] = 'bytes'
-        response['Content-Disposition'] = f'inline; filename="{filename}"'
-        response['Last-Modified'] = http_date(os.path.getmtime(file_path))
-        response.status_code = 206  # Partial content
-
-        return response
-    except BrokenPipeError:
-        print(
-            f"Client disconnected during streaming: {request.META.get('REMOTE_ADDR')}")
-        return HttpResponse(status=200)  # Return a simple OK response

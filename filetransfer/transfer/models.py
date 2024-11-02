@@ -16,9 +16,6 @@ class FileMetadata(models.Model):
     last_modified = models.DateTimeField()
 
 
-# class User(AbstractUser):
-#     is_admin = models.BooleanField(default=False)
-
 class Directory(models.Model):
     # Tracks only public directories
     path = models.CharField(max_length=255, unique=True)
@@ -26,8 +23,7 @@ class Directory(models.Model):
         User, on_delete=models.CASCADE, null=True, blank=True)
     pin = models.CharField(max_length=6, blank=True,
                            null=True)  # PIN for private access
-
-    # TODO:add per directory unique pin or default to admin pin
+    allow_sub_dir = models.BooleanField(default=False)
 
 
 class Movie(models.Model):

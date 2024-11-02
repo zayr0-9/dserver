@@ -202,7 +202,8 @@
         <h1>File Transfer</h1>
         <!-- Search form -->
         <form method="GET" action="{% url 'search_files' %}" style="display: inline;">
-            <input type="text" name="q" placeholder="Search files..." value="{{ request.GET.q }}" />
+            <input type="text" name="q" placeholder="Search files..." value="{{ q }}" />
+
             <button type="submit">Search</button>
         </form>
         
@@ -217,7 +218,7 @@
                 <option value="3000" {% if thumbnail_size == 1000 %}selected{% endif %}>2000x2000</option>
             </select>
         </form>
-        <button class="option" onclick="window.location.href='/files/'">Home</button>
+        <button class="option" onclick="window.location.href='/drive/'">Home</button>
     </div>
 
     <div class="container">
@@ -237,7 +238,7 @@
                     <tr>
                         <td>
                             {% if item.is_dir %}
-                                <a href="{% url 'file_list' item.path|add:item.name|add:'/' %}">{{ item.name }}</a>
+                            <a href="{% url 'file_list' base_dir=base_dir path=item.relative_path|urlencode %}">{{ item.name }}</a>
                             {% else %} 
                                 {{ item.name }} 
                                 {% if item.thumbnail %}
@@ -247,7 +248,7 @@
                                 <!-- Add video player if the item is a video file -->
                                 {% if item.is_video %}
                                     <video width="600" controls style="display: block; margin-top: 10px;">
-                                        <source src="/downloads/{{ item.relative_path }}" type="video/mp4">
+                                        <source src="/downloads/{{ base_dir }}/{{ item.relative_path|urlencode }}" type="video/mp4">
                                         Your browser does not support the video tag.
                                     </video>
                                 {% endif %}
@@ -260,7 +261,9 @@
                             {% if item.is_dir %}
                             <a href="{% url 'download_zip' %}?path={{ item.relative_path|urlencode }}" onclick="showPopup()">Download Zip</a>
                             {% else %}
-                            <a href="/downloads/{{ item.relative_path }}" download onclick="showPopup()">Download</a>
+                            <a href="/downloads/{{ base_dir }}/{{ item.relative_path|urlencode }}" download onclick="showPopup()">Download</a>
+
+                            
                             {% endif %}
                             {% if item.is_video %}
                                 <!-- Video Streaming Link -->
