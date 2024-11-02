@@ -20,8 +20,8 @@ urlpatterns = [
     # Video streaming
     path('video/<path:path>/<str:filename>/',
          views.video_stream_page, name='video_stream_page'),
-    #     path('stream/<path:path>/<str:filename>/',
-    #          views.stream_video, name='stream_video'), old for file mode
+    path('stream/<path:path>/<str:filename>/',
+         views.stream_video, name='stream_video'),  # old for file mode
     # Video streaming endpoint
     #     path('stream/<int:id>/', views.stream_video_by_id,
     #          name='stream_video_by_id'),  # for react

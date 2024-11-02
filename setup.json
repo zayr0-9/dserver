@@ -1,0 +1,4 @@
+{
+  "_comment": "This is the drive letter used for server storage paths. Preferably don't set it to the drive with windows installed (commonly C)",
+  "drive_letter": "D"
+}
