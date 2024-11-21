@@ -1,0 +1,93 @@
+<!-- templates/serveradmin/category_list.html -->
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>File Type Categories</title>
+    <style>
+      /* Basic CSS styling */
+      body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+      }
+
+      h1 {
+        color: #333;
+      }
+
+      .add-button {
+        display: inline-block;
+        margin-bottom: 15px;
+        padding: 10px 15px;
+        background-color: #4caf50;
+        color: white;
+        text-decoration: none;
+        border-radius: 4px;
+      }
+
+      .add-button:hover {
+        background-color: #45a049;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      table th,
+      table td {
+        padding: 12px 15px;
+        border: 1px solid #ddd;
+        text-align: left;
+      }
+
+      table th {
+        background-color: #f2f2f2;
+      }
+
+      table tr:nth-child(even) {
+        background-color: #fafafa;
+      }
+
+      .action-buttons a {
+        margin-right: 10px;
+        color: #2196f3;
+        text-decoration: none;
+      }
+
+      .action-buttons a:hover {
+        text-decoration: underline;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>File Type Categories</h1>
+    <a href="{% url 'category_create' %}" class="add-button"
+      >Add New Category</a
+    >
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Extensions</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for category in categories %}
+        <tr>
+          <td>{{ category.name }}</td>
+          <td>{{ category.extensions }}</td>
+          <td class="action-buttons">
+            <a href="{% url 'category_edit' category.pk %}">Edit</a>
+            <a href="{% url 'category_delete' category.pk %}">Delete</a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="3">No categories available.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </body>
+</html>

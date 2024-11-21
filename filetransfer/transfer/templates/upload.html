@@ -103,7 +103,9 @@
       <input type="file" id="fileInput" name="files" multiple />
       <button type="submit">Upload</button>
     </form>
-    <a href="{% url 'file_list' %}">View Files</a>
+    <a href="{% url 'file_list' base_dir=base_dir path=current_path %}"
+      >View Files</a
+    >
 
     <!-- Progress bar -->
     <div class="progress-bar" id="progressContainer">

@@ -7,7 +7,7 @@ from django.contrib.auth.models import User
 from datetime import timedelta
 
 
-class FileMetadata(models.Model):
+class FileSearchMetadata(models.Model):
     file_name = models.CharField(max_length=255)
     file_path = models.TextField()
     is_dir = models.BooleanField(default=False)  # True if it's a directory
@@ -39,6 +39,35 @@ class Movie(models.Model):
     last_position = models.DurationField(default=timedelta(seconds=0))
     user = models.ForeignKey(
         User, on_delete=models.CASCADE, null=True, blank=True)
+
+
+class FileTypeCategory(models.Model):
+    name = models.CharField(max_length=50, unique=True)
+    extensions = models.TextField(
+        help_text="Comma-separated list of file extensions, e.g., .jpg,.png,.gif"
+    )
+
+    def get_extensions_list(self):
+        return [ext.strip().lower() for ext in self.extensions.split(',')]
+
+    def __str__(self):
+        return self.name
+
+
+class FileMetadata(models.Model):
+    name = models.CharField(max_length=255)
+    relative_path = models.CharField(max_length=1024, unique=True)
+    absolute_path = models.CharField(max_length=2048, unique=True)
+    is_dir = models.BooleanField(default=False)
+    size = models.BigIntegerField(null=True, blank=True)
+    modified = models.DateTimeField()
+    created = models.DateTimeField()
+    file_type = models.ForeignKey(
+        FileTypeCategory, on_delete=models.SET_NULL, null=True, blank=True
+    )
+
+    def __str__(self):
+        return self.relative_path
 
 
 def __str__(self):

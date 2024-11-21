@@ -1,9 +1,10 @@
 import os
 import datetime
 from django.core.management.base import BaseCommand
-from transfer.models import FileMetadata
+from transfer.models import FileMetadata, FileTypeCategory
 
-BASE_DIR = 'D:\\'  # Root directory to index
+# List of base directories to index
+BASE_DIRS = ['D:\\']  # Add more directories as needed
 
 
 class Command(BaseCommand):
@@ -13,65 +14,78 @@ class Command(BaseCommand):
         # Keep track of paths that are being indexed to remove outdated entries later
         indexed_paths = set()
 
-        for root, dirs, files in os.walk(BASE_DIR):
-            # Index directories
-            for directory in dirs:
-                dir_path = os.path.join(root, directory)
-                relative_path = os.path.relpath(dir_path, BASE_DIR)
-                last_modified = datetime.datetime.fromtimestamp(
-                    os.path.getmtime(dir_path)
-                )
+        # Build a mapping of extensions to FileTypeCategory
+        extension_to_category = {}
+        for category in FileTypeCategory.objects.all():
+            extensions = category.get_extensions_list()
+            for ext in extensions:
+                extension_to_category[ext] = category
 
-                indexed_paths.add(relative_path)
-
-                # Check if the directory already exists in the database
-                try:
-                    directory_entry = FileMetadata.objects.get(
-                        file_path=relative_path, is_dir=True)
-                    # Update the metadata if it already exists
-                    directory_entry.last_modified = last_modified
-                    directory_entry.save()
-                except FileMetadata.DoesNotExist:
-                    # Create a new entry if the directory does not exist
-                    FileMetadata.objects.create(
-                        file_name=directory,
-                        file_path=relative_path,
-                        is_dir=True,
-                        file_size=None,  # Directories don't have a size
-                        last_modified=last_modified,
+        for BASE_DIR in BASE_DIRS:
+            for root, dirs, files in os.walk(BASE_DIR):
+                # Index directories
+                for directory in dirs:
+                    dir_path = os.path.join(root, directory)
+                    relative_path = os.path.relpath(dir_path, BASE_DIR)
+                    absolute_path = os.path.abspath(dir_path)
+                    last_modified = datetime.datetime.fromtimestamp(
+                        os.path.getmtime(dir_path)
+                    )
+                    created = datetime.datetime.fromtimestamp(
+                        os.path.getctime(dir_path)
                     )
 
-            # Index files
-            for file in files:
-                file_path = os.path.join(root, file)
-                relative_path = os.path.relpath(file_path, BASE_DIR)
-                file_size = os.path.getsize(file_path)
-                last_modified = datetime.datetime.fromtimestamp(
-                    os.path.getmtime(file_path)
-                )
+                    indexed_paths.add(absolute_path)
 
-                indexed_paths.add(relative_path)
+                    # Update or create the directory entry
+                    FileMetadata.objects.update_or_create(
+                        absolute_path=absolute_path,
+                        defaults={
+                            'name': directory,
+                            'relative_path': relative_path,
+                            'is_dir': True,
+                            'size': None,
+                            'modified': last_modified,
+                            'created': created,
+                            'file_type': None,
+                        }
+                    )
 
-                # Check if the file already exists in the database
-                try:
-                    file_entry = FileMetadata.objects.get(
-                        file_path=relative_path, is_dir=False)
-                    # Update the metadata if it already exists
-                    file_entry.file_size = file_size
-                    file_entry.last_modified = last_modified
-                    file_entry.save()
-                except FileMetadata.DoesNotExist:
-                    # Create a new entry if the file does not exist
-                    FileMetadata.objects.create(
-                        file_name=file,
-                        file_path=relative_path,
-                        is_dir=False,
-                        file_size=file_size,
-                        last_modified=last_modified,
+                # Index files
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    relative_path = os.path.relpath(file_path, BASE_DIR)
+                    absolute_path = os.path.abspath(file_path)
+                    file_size = os.path.getsize(file_path)
+                    last_modified = datetime.datetime.fromtimestamp(
+                        os.path.getmtime(file_path)
+                    )
+                    created = datetime.datetime.fromtimestamp(
+                        os.path.getctime(file_path)
+                    )
+
+                    indexed_paths.add(absolute_path)
+
+                    # Determine the file type based on extension
+                    ext = os.path.splitext(file)[1].lower()
+                    file_type = extension_to_category.get(ext)
+
+                    # Update or create the file entry
+                    FileMetadata.objects.update_or_create(
+                        absolute_path=absolute_path,
+                        defaults={
+                            'name': file,
+                            'relative_path': relative_path,
+                            'is_dir': False,
+                            'size': file_size,
+                            'modified': last_modified,
+                            'created': created,
+                            'file_type': file_type,
+                        }
                     )
 
         # Optional: Remove any entries in the database that were not re-indexed (deleted from the file system)
-        FileMetadata.objects.exclude(file_path__in=indexed_paths).delete()
+        FileMetadata.objects.exclude(absolute_path__in=indexed_paths).delete()
 
         self.stdout.write(self.style.SUCCESS(
             'File indexing completed and database updated.'))

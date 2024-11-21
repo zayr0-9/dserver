@@ -162,3 +162,7 @@ storybook-static/
 .eslintcache
 .prettierignore
 .prettiercache
+
+
+#conf
+nginx-rtmp-win32-1.2.1/conf/dynamic_drives.conf

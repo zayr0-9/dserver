@@ -1,325 +1,725 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <!-- Meta Tags and Title -->
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Files</title>
+    <!-- Styles -->
     <style>
-        body {
-            font-family: 'Arial', sans-serif;
-            background-color: #f4f4f9;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
+      /* Base Styles */
+      body {
+        font-family: "Arial", sans-serif;
+        background-color: #f4f4f9;
+        margin: 0;
+        padding: 0;
+      }
 
+      /* Top Bar */
+      .top-bar {
+        background-color: #333;
+        color: white;
+        padding: 15px 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+      }
+
+      .top-bar h1 {
+        font-size: 1.8rem;
+        margin: 0;
+      }
+
+      .top-bar .option {
+        background-color: #555;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        cursor: pointer;
+        border-radius: 5px;
+        font-size: 1rem;
+        margin-left: 10px;
+      }
+
+      .top-bar .option:hover {
+        background-color: #777;
+      }
+
+      /* Container */
+      .container {
+        width: 100%;
+        max-width: 1200px;
+        padding: 20px;
+        box-sizing: border-box;
+        margin: 0 auto;
+      }
+
+      h2 {
+        font-size: 1.6rem;
+        margin-bottom: 20px;
+      }
+
+      /* Forms */
+      .form-section {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 15px;
+        margin-bottom: 20px;
+      }
+
+      .form-section form {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .form-section label {
+        font-weight: bold;
+      }
+
+      .form-section select,
+      .form-section input[type="number"],
+      .form-section input[type="date"] {
+        padding: 5px;
+        font-size: 1rem;
+        border-radius: 4px;
+        border: 1px solid #ccc;
+      }
+
+      .form-section button {
+        padding: 8px 12px;
+        font-size: 1rem;
+        border-radius: 5px;
+        border: none;
+        background-color: #007bff;
+        color: white;
+        cursor: pointer;
+      }
+
+      .form-section button:hover {
+        background-color: #0056b3;
+      }
+
+      /* Table */
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+        background-color: white;
+        font-size: 1rem;
+      }
+
+      th,
+      td {
+        padding: 12px 15px;
+        text-align: center;
+        border-bottom: 1px solid #ddd;
+        vertical-align: middle;
+      }
+
+      th {
+        background-color: #f4f4f9;
+        font-weight: 600;
+      }
+
+      tr:hover {
+        background-color: #f1f1f1;
+      }
+
+      /* Links and Buttons */
+      a {
+        color: #007bff;
+        text-decoration: none;
+      }
+
+      a:hover {
+        text-decoration: underline;
+      }
+
+      .action-buttons {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        justify-content: center;
+      }
+
+      .action-buttons a,
+      .action-buttons button {
+        display: inline-block;
+        padding: 6px 12px;
+        font-size: 0.9rem;
+        border-radius: 4px;
+        text-decoration: none;
+        color: white;
+        background-color: #28a745;
+        border: none;
+        cursor: pointer;
+      }
+
+      .action-buttons a.download {
+        background-color: #007bff;
+      }
+
+      .action-buttons a.stream {
+        background-color: #17a2b8;
+      }
+
+      .action-buttons a.download:hover,
+      .action-buttons a.stream:hover,
+      .action-buttons button:hover {
+        background-color: #0056b3;
+      }
+
+      /* Thumbnails */
+      .thumbnail {
+        max-width: 100px;
+        max-height: 100px;
+        cursor: pointer;
+      }
+
+      /* Video Player */
+      .video-player {
+        width: 100%;
+        max-width: 600px;
+        height: auto;
+        margin-top: 10px;
+      }
+
+      /* Upload Link */
+      .upload-link {
+        display: inline-block;
+        margin-top: 20px;
+        background-color: #333;
+        color: white;
+        padding: 12px 24px;
+        text-decoration: none;
+        border-radius: 5px;
+        font-size: 1rem;
+        text-align: center;
+      }
+
+      .upload-link:hover {
+        background-color: #555;
+      }
+
+      /* Modal Styles */
+      .modal {
+        display: none;
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        overflow: auto;
+        background-color: rgba(0, 0, 0, 0.8);
+        justify-content: center;
+        align-items: center;
+      }
+
+      .modal.active {
+        display: flex;
+      }
+
+      .modal-content {
+        position: relative;
+        max-width: 90%;
+        max-height: 90%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .modal-content-media {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .modal-content-media img,
+      .modal-content-media video {
+        max-width: 100%;
+        max-height: 100%;
+        cursor: pointer;
+      }
+
+      .close-modal {
+        position: absolute;
+        top: 10px;
+        right: 15px;
+        color: white;
+        font-size: 30px;
+        font-weight: bold;
+        text-decoration: none;
+        cursor: pointer;
+      }
+
+      .close-modal:hover {
+        color: #ccc;
+      }
+
+      /* Next and Previous Buttons */
+      .modal-content button {
+        background-color: transparent;
+        border: none;
+        color: white;
+        font-size: 5rem;
+        cursor: pointer;
+        padding: 0 20px;
+      }
+
+      .modal-content button:hover {
+        color: #ccc;
+      }
+
+      /* Modal Download Button */
+      .modal-content-media .action-buttons {
+        margin-top: 15px;
+        text-align: center;
+      }
+
+      .modal-content-media .action-buttons .download {
+        background-color: #007bff;
+        color: white;
+        padding: 10px 20px;
+        text-decoration: none;
+        border-radius: 5px;
+        font-size: 1rem;
+      }
+
+      .modal-content-media .action-buttons .download:hover {
+        background-color: #0056b3;
+      }
+
+      /* Responsive styles */
+      @media (max-width: 768px) {
         .top-bar {
-            background-color: #333;
-            color: white;
-            padding: 15px 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            width: 100vw;
+          flex-direction: column;
+          align-items: flex-start;
         }
 
         .top-bar h1 {
-            font-size: 1.8rem;
-        }
-
-        .top-bar select {
-            padding: 10px;
-            font-size: 1rem;
-            border-radius: 5px;
-            border: none;
-            outline: none;
-        }
-
-        .top-bar button {
-            background-color: #555;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            cursor: pointer;
-            border-radius: 5px;
-            font-size: 1rem;
-        }
-
-        .top-bar button:hover {
-            background-color: #777;
-        }
-
-        .container {
-            width: 100%;
-            max-width: 1200px;
-            padding: 20px;
-            box-sizing: border-box;
-        }
-
-        h2 {
-            font-size: 1.6rem;
-            margin-bottom: 20px;
+          font-size: 1.5rem;
         }
 
         table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-            background-color: white;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-            font-size: 1rem;
+          font-size: 0.9rem;
         }
 
-        th, td {
-            padding: 15px;
-            text-align: left;
-            border-bottom: 1px solid #ddd;
-        }
-
-        th {
-            background-color: #f4f4f9;
-            font-weight: 600;
-        }
-
-        tr:hover {
-            background-color: #f1f1f1;
-        }
-
-        a {
-            color: #007bff;
-            text-decoration: none;
-        }
-
-        a:hover {
-            text-decoration: underline;
+        th,
+        td {
+          padding: 8px;
         }
 
         .upload-link {
-            display: inline-block;
-            margin-top: 20px;
-            background-color: #333;
-            color: white;
-            padding: 12px 24px;
-            text-decoration: none;
-            border-radius: 5px;
-            font-size: 1rem;
-            text-align: center;
+          font-size: 0.9rem;
+          padding: 10px 20px;
         }
 
-        .upload-link:hover {
-            background-color: #555;
+        .form-section {
+          flex-direction: column;
+          align-items: flex-start;
         }
 
-        /* Modal (popup) styles */
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 100;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.5);
-            justify-content: center;
-            align-items: center;
+        .form-section form {
+          width: 100%;
         }
 
-        .modal-content {
-            background-color: white;
-            padding: 20px;
-            border-radius: 5px;
-            text-align: center;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        .modal-content button {
+          font-size: 4rem;
+        }
+      }
+
+      @media (max-width: 480px) {
+        .top-bar h1 {
+          font-size: 1.4rem;
         }
 
-        .close-button {
-            background-color: #333;
-            color: white;
-            padding: 10px 20px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            margin-top: 20px;
-            font-size: 1rem;
+        table,
+        th,
+        td {
+          font-size: 0.85rem;
+          padding: 6px;
         }
 
-        .close-button:hover {
-            background-color: #555;
+        .upload-link {
+          font-size: 0.85rem;
+          padding: 8px 16px;
         }
 
-        /* Responsive styles */
-        @media (max-width: 768px) {
-            .top-bar {
-                flex-direction: column;
-                align-items: flex-start;
-            }
-
-            .top-bar h1 {
-                font-size: 1.5rem;
-            }
-
-            table {
-                font-size: 0.9rem;
-            }
-
-            th, td {
-                padding: 12px;
-            }
-
-            .upload-link {
-                font-size: 0.9rem;
-                padding: 10px 20px;
-            }
+        .action-buttons a,
+        .action-buttons button {
+          padding: 5px 10px;
+          font-size: 0.85rem;
         }
 
-        @media (max-width: 480px) {
-            .top-bar {
-                flex-direction: column;
-                align-items: flex-start;
-                padding: 10px;
-            }
-
-            .top-bar h1 {
-                font-size: 1.4rem;
-            }
-
-            table, th, td {
-                font-size: 0.85rem;
-                padding: 10px;
-            }
-
-            .upload-link {
-                font-size: 0.85rem;
-                padding: 8px 16px;
-            }
+        .thumbnail {
+          max-width: 80px;
+          max-height: 80px;
         }
+
+        .modal-content button {
+          font-size: 3rem;
+        }
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
+    <!-- Top Bar -->
     <div class="top-bar">
-        <h1>File Transfer</h1>
-        <!-- Search form -->
-        <form method="GET" action="{% url 'search_files' %}" style="display: inline;">
-            <input type="text" name="q" placeholder="Search files..." value="{{ q }}" />
-
-            <button type="submit">Search</button>
-        </form>
-        
-
-        <form method="GET" action="">
-            <label for="thumbnail_size">Thumbnail Size:</label>
-            <select name="thumbnail_size" id="thumbnail_size" onchange="this.form.submit()">
-                <option value="100" {% if thumbnail_size == 100 %}selected{% endif %}>100x100</option>
-                <option value="300" {% if thumbnail_size == 300 %}selected{% endif %}>300x300</option>
-                <option value="500" {% if thumbnail_size == 500 %}selected{% endif %}>500x500</option>
-                <option value="1000" {% if thumbnail_size == 1000 %}selected{% endif %}>1000x1000</option>
-                <option value="3000" {% if thumbnail_size == 1000 %}selected{% endif %}>2000x2000</option>
-            </select>
-        </form>
-        <button class="option" onclick="window.location.href='/drive/'">Home</button>
+      <h1>File Transfer</h1>
+      <button class="option" onclick="window.location.href='/drive/'">
+        Home
+      </button>
     </div>
 
+    <!-- Container -->
     <div class="container">
-        <h2>Available Files and Directories</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>Name</th>
-                    <th>Type</th>
-                    <th>Size (bytes)</th>
-                    <th>Last Modified</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for item in items %}
-                    <tr>
-                        <td>
-                            {% if item.is_dir %}
-                            <a href="{% url 'file_list' base_dir=base_dir path=item.relative_path|urlencode %}">{{ item.name }}</a>
-                            {% else %} 
-                                {{ item.name }} 
-                                {% if item.thumbnail %}
-                                    <img src="/transfer/thumbnails/{{ item.thumbnail }}" alt="Thumbnail" />
-                                {% endif %}
-            
-                                <!-- Add video player if the item is a video file -->
-                                {% if item.is_video %}
-                                    <video width="600" controls style="display: block; margin-top: 10px;">
-                                        <source src="/downloads/{{ base_dir }}/{{ item.relative_path|urlencode }}" type="video/mp4">
-                                        Your browser does not support the video tag.
-                                    </video>
-                                {% endif %}
-                            {% endif %}
-                        </td>
-                        <td>{{ item.is_dir|yesno:"Directory,File" }}</td>
-                        <td>{{ item.size }}</td>
-                        <td>{{ item.modified }}</td>
-                        <td>
-                            {% if item.is_dir %}
-                            <a href="{% url 'download_zip' %}?path={{ item.relative_path|urlencode }}" onclick="showPopup()">Download Zip</a>
-                            {% else %}
-                            <a href="/downloads/{{ base_dir }}/{{ item.relative_path|urlencode }}" download onclick="showPopup()">Download</a>
+        <!-- Forms Section -->
+        <div class="form-section">
+            <!-- Sorting Form -->
+            <form method="GET" action="" id="sortingForm">
+                <label for="sort_by">Sort by:</label>
+                <select name="sort_by" id="sort_by" onchange="document.getElementById('sortingForm').submit()">
+                    <option value="name" {% if sort_by == 'name' %}selected{% endif %}>Name</option>
+                    <option value="size" {% if sort_by == 'size' %}selected{% endif %}>Size</option>
+                    <option value="modified" {% if sort_by == 'modified' %}selected{% endif %}>Last Modified</option>
+                    <option value="created" {% if sort_by == 'created' %}selected{% endif %}>Creation Date</option>
+                </select>
 
-                            
-                            {% endif %}
-                            {% if item.is_video %}
-                                <!-- Video Streaming Link -->
-                                <a href="/stream/{{ base_dir }}/{{ item.relative_path }}" style="margin-left: 10px;">Stream</a>
-                            {% endif %}
-                        </td>
-                    </tr>
+                <label for="sort_dir">Order:</label>
+                <select name="sort_dir" id="sort_dir" onchange="document.getElementById('sortingForm').submit()">
+                    <option value="asc" {% if sort_dir == 'asc' %}selected{% endif %}>Ascending</option>
+                    <option value="desc" {% if sort_dir == 'desc' %}selected{% endif %}>Descending</option>
+                </select>
+
+                <!-- Include other query parameters as hidden inputs -->
+                {% for key, value in request.GET.items %}
+                    {% if key != 'sort_by' and key != 'sort_dir' %}
+                        <input type="hidden" name="{{ key }}" value="{{ value }}">
+                    {% endif %}
                 {% endfor %}
-            </tbody>
-        </table>
-        <a href="{% url 'file_upload' %}" class="upload-link">Upload More Files</a>
+            </form>
+
+            <!-- Filtering Form -->
+            <form method="GET" action="" id="filteringForm">
+                <label for="type">Type:</label>
+                <select name="type" id="type" onchange="document.getElementById('filteringForm').submit()">
+                    <option value="all" {% if filter_type == 'all' %}selected{% endif %}>All</option>
+                    <option value="dir" {% if filter_type == 'dir' %}selected{% endif %}>Directories</option>
+                    <option value="file" {% if filter_type == 'file' %}selected{% endif %}>Files</option>
+                </select>
+
+                <label for="file_type">File Type:</label>
+                <select name="file_type" id="file_type" onchange="document.getElementById('filteringForm').submit()">
+                    <option value="all" {% if file_type == 'all' %}selected{% endif %}>All</option>
+                    <option value="images" {% if file_type == 'images' %}selected{% endif %}>Images</option>
+                    <option value="videos" {% if file_type == 'videos' %}selected{% endif %}>Videos</option>
+                    <option value="documents" {% if file_type == 'documents' %}selected{% endif %}>Documents</option>
+                    <option value="audio" {% if file_type == 'audio' %}selected{% endif %}>Audio</option>
+                    <option value="archives" {% if file_type == 'archives' %}selected{% endif %}>Archives</option>
+                </select>
+
+                <label for="size_min">Size Min (bytes):</label>
+                <input type="number" name="size_min" id="size_min" value="{{ size_min }}" style="width: 100px;">
+
+                <label for="size_max">Size Max (bytes):</label>
+                <input type="number" name="size_max" id="size_max" value="{{ size_max }}" style="width: 100px;">
+
+                <label for="date_from">Date From:</label>
+                <input type="date" name="date_from" id="date_from" value="{{ date_from }}">
+
+                <label for="date_to">Date To:</label>
+                <input type="date" name="date_to" id="date_to" value="{{ date_to }}">
+
+                <!-- Include other query parameters as hidden inputs -->
+                {% for key, value in request.GET.items %}
+                {% if key != 'type' and key != 'file_type' and key != 'size_min' and key != 'size_max' and key != 'date_from' and key != 'date_to' %}
+
+                        <input type="hidden" name="{{ key }}" value="{{ value }}">
+                    {% endif %}
+                {% endfor %}
+            </form>
+
+            <!-- Thumbnail Size Form -->
+            <form method="GET" action="">
+                <label for="thumbnail_size">Thumbnail Size:</label>
+                <select name="thumbnail_size" id="thumbnail_size" onchange="this.form.submit()">
+                    <option value="100" {% if thumbnail_size == 100 %}selected{% endif %}>100x100</option>
+                    <option value="300" {% if thumbnail_size == 300 %}selected{% endif %}>300x300</option>
+                    <option value="500" {% if thumbnail_size == 500 %}selected{% endif %}>500x500</option>
+                    <option value="1000" {% if thumbnail_size == 1000 %}selected{% endif %}>1000x1000</option>
+                    <option value="2000" {% if thumbnail_size == 2000 %}selected{% endif %}>2000x2000</option>
+                </select>
+
+                <!-- Include other query parameters as hidden inputs -->
+                {% for key, value in request.GET.items %}
+                    {% if key != 'thumbnail_size' %}
+                        <input type="hidden" name="{{ key }}" value="{{ value }}">
+                    {% endif %}
+                {% endfor %}
+            </form>
+        </div>
+      <!-- File Table -->
+      <h2>Available Files and Directories</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Thumbnail</th>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Size</th>
+            <th>Last Modified</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in items %}
+          <tr>
+            <td>
+              {% if item.is_dir %}
+              <!-- Optionally display a folder icon or leave blank -->
+              {% elif item.thumbnail %}
+              <img
+                src="{% if item.is_video %}/transfer/thumbnails/{{ item.thumbnail }}{% else %}/downloads/{{ base_dir }}/{{ item.relative_path|urlencode }}{% endif %}"
+                alt="Thumbnail"
+                class="thumbnail"
+                data-media-type="{% if item.is_video %}video{% else %}image{% endif %}"
+                data-src="{% if item.is_video %}/downloads/{{ base_dir }}/{{ item.relative_path|urlencode }}{% else %}/downloads/{{ base_dir }}/{{ item.relative_path|urlencode }}{% endif %}"
+                data-name="{{ item.name }}"
+                data-download-url="/downloads/{{ base_dir }}/{{ item.relative_path|urlencode }}"
+                onclick="openMediaModal(this)"
+              />
+              {% else %}
+              <!-- Handle other file types or display a placeholder -->
+              {% endif %}
+            </td>
+            <td>
+              {% if item.is_dir %}
+              <a
+                href="{% url 'file_list' base_dir=base_dir path=item.relative_path|urlencode %}"
+                >{{ item.name }}</a
+              >
+              {% else %} {{ item.name }} {% endif %}
+            </td>
+            <td>{{ item.is_dir|yesno:"Directory,File" }}</td>
+            <td>
+              {% if item.size %} {{ item.size|filesizeformat }} {% endif %}
+            </td>
+            <td>{{ item.modified }}</td>
+            <td>
+              <div class="action-buttons">
+                {% if item.is_dir %}
+                <a
+                  href="{% url 'download_zip' %}?path={{ item.relative_path|urlencode }}"
+                  class="download"
+                  >Download Zip</a
+                >
+                {% else %}
+                <a
+                  href="/downloads/{{ base_dir }}/{{ item.relative_path|urlencode }}"
+                  download
+                  class="download"
+                  >Download</a
+                >
+                {% endif %} {% if item.is_video %}
+                <a
+                  href="/stream/{{ base_dir }}/{{ item.relative_path|urlencode }}"
+                  class="stream"
+                  >Stream</a
+                >
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <a
+        href="{% url 'file_upload' %}?base_dir={{ base_dir }}&path={{ current_path|urlencode }}"
+        class="upload-link"
+        >Upload More Files</a
+      >
     </div>
-    
-    <!-- Admin PIN Modal -->
+
+    <!-- Modal for Private Directories -->
     {% if is_private %}
     <div class="modal active" id="pinModal">
-        <div class="modal-content">
-            <h2>Enter Admin PIN to Access Directory</h2>
-            <form method="POST">
-                {% csrf_token %}
-                <input type="password" name="pin" placeholder="Enter Admin PIN" required />
-                <button type="submit">Submit</button>
-            </form>
-            {% if pin_error %}
-                <p style="color: red;">{{ pin_error }}</p>
-            {% endif %}
-        </div>
+      <div class="modal-content">
+        <h2>Enter Admin PIN to Access Directory</h2>
+        <form id="pinForm">
+          {% csrf_token %}
+          <input
+            type="password"
+            name="pin"
+            placeholder="Enter Admin PIN"
+            required
+          />
+          <button type="submit">Submit</button>
+        </form>
+        <p id="pinError" style="color: red"></p>
+      </div>
     </div>
     {% endif %}
 
-    <script>
-        // Ensure modal is displayed if is_private is true
-        document.addEventListener('DOMContentLoaded', function() {
-            var modal = document.getElementById('pinModal');
-            if (modal) {
-                modal.style.display = 'flex';
-            }
-        });
-    </script>
-    
-    <!-- Modal (popup) -->
-    <div id="downloadPopup" class="modal">
-        <div class="modal-content">
-            <p>Downloading, please wait...</p>
-            <button class="close-button" onclick="closePopup()">Close</button>
+    <!-- Media Modal -->
+    <div id="mediaModal" class="modal">
+      <a href="#" class="close-modal" onclick="closeMediaModal()">&times;</a>
+      <div class="modal-content">
+        <!-- Previous Button -->
+        <button id="prevBtn" onclick="prevMedia()">&#10094;</button>
+
+        <!-- Media Container -->
+        <div class="modal-content-media">
+          <div id="modalMediaContainer"></div>
+
+          <!-- Action Buttons -->
+          <div class="action-buttons" id="modalActionButtons">
+            <!-- Download button will be inserted here dynamically -->
+          </div>
         </div>
+
+        <!-- Next Button -->
+        <button id="nextBtn" onclick="nextMedia()">&#10095;</button>
+      </div>
     </div>
 
+    <!-- Scripts -->
     <script>
-        function showPopup() {
-            document.getElementById('downloadPopup').style.display = 'flex';
+      // Prepare an array of media items
+      var mediaItems = [];
+      document.addEventListener("DOMContentLoaded", function () {
+        var thumbnails = document.querySelectorAll(".thumbnail");
+        thumbnails.forEach(function (el, index) {
+          mediaItems.push({
+            index: index,
+            type: el.getAttribute("data-media-type"),
+            src: el.getAttribute("data-src"),
+            thumbnail: el.src,
+            name: el.getAttribute("data-name"),
+            downloadUrl: el.getAttribute("data-download-url"),
+          });
+          el.setAttribute("data-index", index);
+        });
+      });
+
+      var currentIndex = 0;
+
+      function openMediaModal(element) {
+        var index = parseInt(element.getAttribute("data-index"));
+        var modal = document.getElementById("mediaModal");
+        currentIndex = index;
+        displayMedia(mediaItems[currentIndex]);
+        modal.style.display = "flex";
+      }
+
+      function closeMediaModal() {
+        var modal = document.getElementById("mediaModal");
+        var modalContainer = document.getElementById("modalMediaContainer");
+
+        // Pause the video if it's playing
+        var video = modalContainer.querySelector("video");
+        if (video && !video.paused) {
+          video.pause();
         }
 
-        function closePopup() {
-            document.getElementById('downloadPopup').style.display = 'none';
+        modal.style.display = "none";
+      }
+
+      function nextMedia() {
+        currentIndex = (currentIndex + 1) % mediaItems.length;
+        displayMedia(mediaItems[currentIndex]);
+      }
+
+      function prevMedia() {
+        currentIndex =
+          (currentIndex - 1 + mediaItems.length) % mediaItems.length;
+        displayMedia(mediaItems[currentIndex]);
+      }
+
+      function displayMedia(mediaItem) {
+        var modalContainer = document.getElementById("modalMediaContainer");
+        var actionButtons = document.getElementById("modalActionButtons");
+        modalContainer.innerHTML = "";
+        actionButtons.innerHTML = "";
+
+        if (mediaItem.type === "image") {
+          var img = document.createElement("img");
+          img.src = mediaItem.src;
+          img.alt = "Image";
+          modalContainer.appendChild(img);
+        } else if (mediaItem.type === "video") {
+          var video = document.createElement("video");
+          video.src = mediaItem.src;
+          video.controls = true;
+          video.poster = mediaItem.thumbnail;
+          modalContainer.appendChild(video);
         }
+
+        // Create the download button
+        var downloadLink = document.createElement("a");
+        downloadLink.href = mediaItem.downloadUrl;
+        downloadLink.download = mediaItem.name;
+        downloadLink.className = "download";
+        downloadLink.innerText = "Download";
+
+        actionButtons.appendChild(downloadLink);
+      }
+
+      // Close modal when clicking outside the content
+      window.onclick = function (event) {
+        var modal = document.getElementById("mediaModal");
+        if (event.target == modal) {
+          closeMediaModal();
+        }
+      };
+
+      // Handle PIN Modal
+      document.addEventListener("DOMContentLoaded", function () {
+        var modal = document.getElementById("pinModal");
+        if (modal) {
+          modal.style.display = "flex";
+
+          // Use history.replaceState to prevent adding this page to history
+          history.replaceState(null, "", window.location.href);
+
+          // Handle PIN submission via AJAX
+          var pinForm = document.getElementById("pinForm");
+          pinForm.addEventListener("submit", function (e) {
+            e.preventDefault(); // Prevent the form from submitting normally
+
+            var formData = new FormData(pinForm);
+            var xhr = new XMLHttpRequest();
+            xhr.open("POST", "", true);
+            xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
+
+            xhr.onload = function () {
+              if (xhr.status === 200) {
+                var response = JSON.parse(xhr.responseText);
+                if (response.success) {
+                  // Hide the modal
+                  modal.style.display = "none";
+
+                  // Reload the page content without affecting history
+                  location.reload();
+                } else {
+                  // Display error message
+                  document.getElementById("pinError").innerText =
+                    response.error;
+                }
+              } else {
+                document.getElementById("pinError").innerText =
+                  "An error occurred. Please try again.";
+              }
+            };
+
+            xhr.send(formData);
+          });
+        }
+      });
     </script>
-</body>
+  </body>
 </html>

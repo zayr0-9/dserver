@@ -153,6 +153,13 @@
   <body>
     <div class="top-bar">
       <h1>Admin Console</h1>
+      <div class="admin-buttons">
+        <!-- Existing admin buttons -->
+        <!-- Add the new button below -->
+        <a href="{% url 'category_list' %}" class="admin-button"
+          >Manage File Type Categories</a
+        >
+      </div>
       <button onclick="window.location.href='{% url 'file_list' %}'">
         Home
       </button>

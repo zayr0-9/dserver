@@ -7,6 +7,7 @@ import datetime
 import shutil
 import re
 import mimetypes
+import hashlib
 import subprocess
 import requests
 import json
@@ -14,7 +15,7 @@ from PIL import Image
 from django.utils.http import http_date
 from moviepy.editor import VideoFileClip
 from urllib.parse import quote
-from transfer.models import FileMetadata, Movie
+from transfer.models import FileSearchMetadata, Movie
 from django.db.models import Q
 from .models import Directory, Movie
 from django.views.decorators.clickjacking import xframe_options_exempt
@@ -25,16 +26,28 @@ from urllib.parse import unquote, quote
 import string
 from ctypes import windll
 from django.conf import settings
+from .models import FileTypeCategory
+from .forms import FileTypeCategoryForm
+
 
 # logger = logging.getLogger(__name__)
 
 
-BASE_DIR = 'C:\\'  # Change this to the base directory you want to start with
-ADMIN_PIN = "1234"
+# BASE_DIR = 'C:\\'  # Change this to the base directory you want to start with
+ADMIN_PIN = "12345"
 
 
 def file_upload(request):
-    upload_dir = os.path.join(BASE_DIR, 'uploads')
+    # upload_dir = os.path.join(BASE_DIR, 'uploads')
+    # os.makedirs(upload_dir, exist_ok=True)
+    base_dir = request.GET.get('base_dir')
+    relative_path = request.GET.get('path', ' ').lstrip('/\\')
+
+    if base_dir and relative_path:
+        upload_dir = os.path.join(f"{base_dir}:/", relative_path)
+    else:
+        upload_dir = os.path.join(settings.BASE_DIR, 'uploads')
+
     os.makedirs(upload_dir, exist_ok=True)
 
     if request.method == 'POST' and request.FILES.getlist('files'):
@@ -81,10 +94,15 @@ def file_upload(request):
         # Return the list of uploaded file paths and thumbnails
         return render(request, 'upload.html', {
             'file_paths': uploaded_file_paths,
-            'thumbnails': thumbnails
+            'thumbnails': thumbnails,
+            'base_dir': base_dir,
+            'current_path': relative_path
         })
 
-    return render(request, 'upload.html')
+    return render(request, 'upload.html', {
+        'base_dir': base_dir,
+        'current_path': relative_path
+    })
 
 
 def search_files(request):
@@ -93,7 +111,7 @@ def search_files(request):
 
     if search_query:
         # Perform a search using ORM with case-insensitive matching
-        results = FileMetadata.objects.filter(
+        results = FileSearchMetadata.objects.filter(
             Q(file_name__icontains=search_query) |
             Q(file_path__icontains=search_query)
         )
@@ -104,19 +122,19 @@ def search_files(request):
 def search_files(request):
     # Get the search query from the request
     query = request.GET.get('q', '').strip()
-    thumbnail_size = int(request.GET.get('thumbnail_size', 100))
+    thumbnail_size = 500
 
     # Debug output to see the query and what's being searched
     print(f"Search query: {query}")
 
     if query:
         # Perform case-insensitive search for both file names and file paths
-        results = FileMetadata.objects.filter(
+        results = FileSearchMetadata.objects.filter(
             Q(file_name__icontains=query) | Q(file_path__icontains=query)
         )
     else:
         # No search results if no query is provided
-        results = FileMetadata.objects.none()
+        results = FileSearchMetadata.objects.none()
 
     context = {
         'items': results,
@@ -133,6 +151,36 @@ def drives(request):
     }
     return render(request, 'drivelist.html', context)
 
+# for react spa
+
+
+@csrf_exempt  # Use with caution; consider implementing proper CSRF handling
+def validate_pin_api(request, drive_letter):
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Only POST requests are allowed.'}, status=405)
+
+    try:
+        data = json.loads(request.body)
+        path = data.get('path', '').lstrip('/\\')
+        entered_pin = data.get('pin', '')
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON.'}, status=400)
+
+    # Validate the PIN
+    if entered_pin == ADMIN_PIN:
+        # Set a session variable to indicate access
+        session_key = f"admin_pin_valid_{drive_letter}_{path}"
+        request.session[session_key] = True
+        return JsonResponse({'success': True})
+    else:
+        return JsonResponse({'success': False, 'error': 'Incorrect PIN. Please try again.'}, status=401)
+
+
+def get_drives_api(request):
+    drives = get_drives()  # Assuming get_drives() returns a list of drive letters
+    data = {'drives': drives}
+    return JsonResponse(data)
+
 
 def get_drives():
     drives = []
@@ -148,126 +196,453 @@ def file_list(request, base_dir='', path=''):
     base_dir = unquote(base_dir)
     path = unquote(path).lstrip('/\\')
 
+    # Boolean to control whether hidden files are shown
+    show_hidden_files = False  # Default is False; can be updated from admin settings
+
+    # Sorting parameters
+    sort_by = request.GET.get('sort_by', 'name')  # Default sort by name
+    sort_dir = request.GET.get('sort_dir', 'asc')  # Default ascending order
+
+    # Filtering parameters
+    filter_type = request.GET.get('type', 'all')  # 'all', 'dir', 'file'
+    size_min = request.GET.get('size_min')
+    size_max = request.GET.get('size_max')
+    date_from = request.GET.get('date_from')
+    date_to = request.GET.get('date_to')
+    sub_file_type = request.GET.get('file_type', 'all')  # Sub-file type filter
+
+    # Define file type extensions
+    FILE_TYPES = {
+        'images': ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff'],
+        'videos': ['.mp4', '.avi', '.mov', '.webm', '.mkv'],
+        'documents': ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.txt'],
+        'audio': ['.mp3', '.wav', '.aac', '.flac'],
+        'archives': ['.zip', '.rar', '.7z', '.tar', '.gz']
+    }
+
     if not base_dir:
         return redirect('drives')
 
     base_dir_with_drive = f"{base_dir}:\\"
-
     full_path = os.path.normpath(os.path.join(base_dir_with_drive, path))
-    print(f"Base dir: {base_dir}")
-    print(f"Base dir with drive: {base_dir_with_drive}")
-    print(f"Path: {path}")
-    print(f"Full path to find = {full_path}")
 
-    # Ensure the path exists and is within the base_dir
     if not os.path.exists(full_path):
         raise Http404("Directory does not exist")
 
     if not full_path.startswith(os.path.normpath(base_dir)):
         raise Http404("Access denied")
 
-    # Check if the directory is not in the Directory model (indicating it's private)
+    # Check if the directory is private
     directory_entry = Directory.objects.filter(path=full_path).first()
+    session_key = f"admin_pin_valid_{base_dir}_{path}"
 
-    # If the directory is private (not in the Directory model), ask for admin PIN
-    if not directory_entry and not request.session.get(f'admin_pin_valid_{path}', False):
-        print("Private directory asking for PIN\n")
-        if request.method == 'POST':
-            # Handle PIN submission
+    if not directory_entry and not request.session.get(session_key, False):
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' and request.method == 'POST':
             entered_pin = request.POST.get('pin', None)
             if entered_pin == ADMIN_PIN:
-                # Save the valid PIN in the session
-                request.session[f'admin_pin_valid_{path}'] = True
+                request.session[session_key] = True
+                return JsonResponse({'success': True})
             else:
-                return render(request, 'file_list.html', {
-                    'items': [],
-                    'current_path': path,
-                    'base_dir': base_dir,
-                    'thumbnail_size': 100,
-                    'is_private': True,
-                    'pin_error': 'Incorrect PIN. Please try again.',
-                    'q': request.GET.get('q', '')
-                })
+                return JsonResponse({'success': False, 'error': 'Incorrect PIN. Please try again.'})
 
-        # Show the PIN entry popup if the PIN is not already submitted
         return render(request, 'file_list.html', {
             'items': [],
             'current_path': path,
             'base_dir': base_dir,
-            'thumbnail_size': 100,
+            'thumbnail_size': 500,
             'is_private': True,
             'q': request.GET.get('q', '')
         })
 
     # Default size is 100x100 for thumbnails
-    thumbnail_size = int(request.GET.get('thumbnail_size', 100))
-
-    # Temporary thumbnail directory
+    thumbnail_size = 100
     temp_dir = os.path.join(settings.BASE_DIR, 'temp_thumbnails')
-    shutil.rmtree(temp_dir, ignore_errors=True)
     os.makedirs(temp_dir, exist_ok=True)
 
-    video_extensions = ('.mp4', '.avi', '.mov', '.webm', '.mkv')
-
     items = []
-    for item in os.listdir(full_path):
-        item_path = os.path.join(full_path, item)
-        is_video = not os.path.isdir(
-            item_path) and item.lower().endswith(video_extensions)
-        relative_path = os.path.join(path, item)
-        item_info = {
-            'name': item,
-            'path': path,
-            'relative_path': relative_path,
-            'is_dir': os.path.isdir(item_path),
-            'size': os.path.getsize(item_path) if os.path.isfile(item_path) else None,
-            'modified': datetime.datetime.fromtimestamp(os.path.getmtime(item_path)),
-            'thumbnail': None,
-            'is_video': is_video
-        }
+    with os.scandir(full_path) as entries:
+        for entry in entries:
+            # Skip hidden files if show_hidden_files is False
+            if not show_hidden_files and entry.name.startswith('.'):
+                continue
 
-        if not item_info['is_dir']:
-            ext = os.path.splitext(item)[1].lower()
-            if ext in ['.jpg', '.jpeg', '.png', '.gif']:
+            item_name = entry.name
+            item_path = entry.path
+            is_dir = entry.is_dir(follow_symlinks=False)
+            stat = entry.stat(follow_symlinks=False)
+            size = stat.st_size if not is_dir else None
+            modified = datetime.datetime.fromtimestamp(stat.st_mtime)
+            created = datetime.datetime.fromtimestamp(stat.st_ctime)
+            relative_path = os.path.join(path, item_name)
+            file_ext = os.path.splitext(item_name)[1].lower()
+
+            # Determine if the file is a video
+            video_extensions = tuple(FILE_TYPES['videos'])
+            is_video = not is_dir and file_ext in video_extensions
+
+            item_info = {
+                'name': item_name,
+                'path': path,
+                'relative_path': relative_path,
+                'is_dir': is_dir,
+                'size': size,
+                'modified': modified,
+                'created': created,
+                'thumbnail': None,
+                'is_video': is_video
+            }
+
+            # Generate thumbnails for images
+            if not is_dir and file_ext in FILE_TYPES['images']:
                 try:
-                    image = Image.open(item_path)
-                    image.thumbnail((thumbnail_size, thumbnail_size))
-
-                    if image.mode == 'RGBA':
-                        thumbnail_format = 'PNG'
-                        thumbnail_ext = '.png'
-                    else:
-                        thumbnail_format = 'JPEG'
-                        thumbnail_ext = '.jpg'
-
-                    base_name, ext = os.path.splitext(os.path.basename(item))
-                    thumbnail_filename = f"thumb_{base_name}{thumbnail_ext}"
+                    # Thumbnail file name based on size
+                    file_identifier = f"{item_path}_{int(stat.st_mtime)}_{thumbnail_size}"
+                    thumbnail_hash = hashlib.md5(
+                        file_identifier.encode('utf-8')).hexdigest()
+                    thumbnail_ext = '.png' if file_ext == '.png' else '.jpg'
+                    thumbnail_filename = f"thumb_{thumbnail_hash}{thumbnail_ext}"
                     thumbnail_path = os.path.join(temp_dir, thumbnail_filename)
-                    image.save(thumbnail_path, thumbnail_format)
+
+                    # Generate thumbnail if it doesn't exist
+                    if not os.path.exists(thumbnail_path):
+                        image = Image.open(item_path)
+                        image.thumbnail((thumbnail_size, thumbnail_size))
+                        thumbnail_format = 'PNG' if image.mode == 'RGBA' else 'JPEG'
+                        image.save(thumbnail_path, thumbnail_format)
+
                     item_info['thumbnail'] = thumbnail_filename
                 except Exception as e:
-                    print(f"Failed to create thumbnail for {item}: {e}")
+                    print(f"Failed to create thumbnail for {item_name}: {e}")
 
-        items.append(item_info)
+            # Generate thumbnails for videos
+            elif not is_dir and file_ext in FILE_TYPES['videos']:
+                try:
+                    # Thumbnail file name based on size
+                    file_identifier = f"{item_path}_{int(stat.st_mtime)}_{thumbnail_size*10}"
+                    thumbnail_hash = hashlib.md5(
+                        file_identifier.encode('utf-8')).hexdigest()
+                    thumbnail_filename = f"thumb_{thumbnail_hash}.jpg"
+                    thumbnail_path = os.path.join(temp_dir, thumbnail_filename)
+
+                    # Generate thumbnail if it doesn't exist
+                    if not os.path.exists(thumbnail_path):
+                        # Use ffmpeg to extract a frame at 00:00:01
+                        command = [
+                            'ffmpeg',
+                            '-i', item_path,
+                            '-ss', '00:00:01',
+                            '-vframes', '1',
+                            '-vf', f'scale={thumbnail_size}:-1',
+                            thumbnail_path
+                        ]
+                        subprocess.run(
+                            command, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+
+                    item_info['thumbnail'] = thumbnail_filename
+                except Exception as e:
+                    print(
+                        f"Failed to create video thumbnail for {item_name}: {e}")
+
+            items.append(item_info)
+
+    # Apply filtering
+    filtered_items = []
+    for item in items:
+        # Apply sub-file type filter first
+        if sub_file_type != 'all' and not item['is_dir']:
+            file_ext = os.path.splitext(item['name'])[1].lower()
+            if file_ext not in FILE_TYPES.get(sub_file_type, []):
+                continue  # Skip files that don't match the selected sub-type
+
+        # Then filter by type (dir, file, all)
+        if filter_type == 'dir' and not item['is_dir']:
+            continue
+        if filter_type == 'file' and item['is_dir']:
+            continue
+
+        # Filter by size
+        if size_min and item['size'] is not None and item['size'] < int(size_min):
+            continue
+        if size_max and item['size'] is not None and item['size'] > int(size_max):
+            continue
+
+        # Filter by date
+        if date_from:
+            date_from_dt = datetime.datetime.strptime(date_from, '%Y-%m-%d')
+            if item['modified'] < date_from_dt:
+                continue
+        if date_to:
+            date_to_dt = datetime.datetime.strptime(date_to, '%Y-%m-%d')
+            if item['modified'] > date_to_dt:
+                continue
+
+        filtered_items.append(item)
+
+    # Apply sorting
+    reverse = (sort_dir == 'desc')
+
+    # Define sort key function
+    def sort_key(item):
+        # Use empty string if sort_by key is None
+        return item.get(sort_by) or ''
+
+    # Ensure directories are listed first
+    filtered_items.sort(
+        key=lambda item: (not item['is_dir'], sort_key(item)),
+        reverse=reverse
+    )
 
     context = {
-        'items': items,
+        'items': filtered_items,
         'current_path': path,
         'base_dir': base_dir,
         'thumbnail_size': thumbnail_size,
-        'is_private': False,  # Directory is not private if it reached here
-        'q': request.GET.get('q', '')
+        'is_private': False,
+        'q': request.GET.get('q', ''),
+        'sort_by': sort_by,
+        'sort_dir': sort_dir,
+        'filter_type': filter_type,
+        'file_type': sub_file_type,
+        'size_min': size_min,
+        'size_max': size_max,
+        'date_from': date_from,
+        'date_to': date_to,
     }
+
     return render(request, 'file_list.html', context)
+
+
+def file_list_api(request, drive_letter):
+    base_dir = unquote(drive_letter)
+    path = unquote(request.GET.get('path', '')).lstrip('/\\')
+
+    # Boolean to control whether hidden files are shown
+    show_hidden_files = False  # Default is False; can be updated from admin settings
+
+    # Sorting parameters
+    sort_by = request.GET.get('sort_by', 'name')  # Default sort by name
+    sort_dir = request.GET.get('sort_dir', 'asc')  # Default ascending order
+
+    # Filtering parameters
+    filter_type = request.GET.get('type', 'all')  # 'all', 'dir', 'file'
+    size_min = request.GET.get('size_min')
+    size_max = request.GET.get('size_max')
+    date_from = request.GET.get('date_from')
+    date_to = request.GET.get('date_to')
+    sub_file_type = request.GET.get('file_type', 'all')  # Sub-file type filter
+
+    # Define file type extensions
+    FILE_TYPES = {
+        'images': ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff'],
+        'videos': ['.mp4', '.avi', '.mov', '.webm', '.mkv'],
+        'documents': ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.txt'],
+        'audio': ['.mp3', '.wav', '.aac', '.flac'],
+        'archives': ['.zip', '.rar', '.7z', '.tar', '.gz']
+    }
+
+    if not base_dir:
+        return redirect('drives')
+
+    base_dir_with_drive = f"{base_dir}:\\"
+    full_path = os.path.normpath(os.path.join(base_dir_with_drive, path))
+
+    if not os.path.exists(full_path):
+        raise Http404("Directory does not exist")
+
+    if not full_path.startswith(os.path.normpath(base_dir)):
+        raise Http404("Access denied")
+
+    # Check if the directory is private
+    directory_entry = Directory.objects.filter(path=full_path).first()
+    session_key = f"admin_pin_valid_{base_dir}_{path}"
+
+    if not directory_entry and not request.session.get(session_key, False):
+        if request.method == 'POST' and request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            entered_pin = request.POST.get('pin', None)
+            if entered_pin == ADMIN_PIN:
+                request.session[session_key] = True
+                return JsonResponse({'success': True})
+            else:
+                return JsonResponse({'success': False, 'error': 'Incorrect PIN. Please try again.'}, status=401)
+        else:
+            # Return JSON indicating the directory is private
+            return JsonResponse({'is_private': True}, status=401)
+
+    # Default size is 100x100 for thumbnails
+    thumbnail_size = 100
+    temp_dir = os.path.join(settings.BASE_DIR, 'temp_thumbnails')
+    os.makedirs(temp_dir, exist_ok=True)
+
+    items = []
+    with os.scandir(full_path) as entries:
+        for entry in entries:
+            # Skip hidden files if show_hidden_files is False
+            if not show_hidden_files and entry.name.startswith('.'):
+                continue
+
+            item_name = entry.name
+            item_path = entry.path
+            is_dir = entry.is_dir(follow_symlinks=False)
+            stat = entry.stat(follow_symlinks=False)
+            size = stat.st_size if not is_dir else None
+            modified = datetime.datetime.fromtimestamp(stat.st_mtime)
+            created = datetime.datetime.fromtimestamp(stat.st_ctime)
+            relative_path = os.path.join(path, item_name)
+            file_ext = os.path.splitext(item_name)[1].lower()
+
+            # Determine if the file is a video
+            video_extensions = tuple(FILE_TYPES['videos'])
+            is_video = not is_dir and file_ext in video_extensions
+
+            item_info = {
+                'name': item_name,
+                'path': path,
+                'relative_path': relative_path,
+                'is_dir': is_dir,
+                'size': size,
+                'modified': modified,
+                'created': created,
+                'thumbnail': None,
+                'is_video': is_video
+            }
+
+            # Generate thumbnails for images
+            if not is_dir and file_ext in FILE_TYPES['images']:
+                try:
+                    # Thumbnail file name based on size
+                    file_identifier = f"{item_path}_{int(stat.st_mtime)}_{thumbnail_size}"
+                    thumbnail_hash = hashlib.md5(
+                        file_identifier.encode('utf-8')).hexdigest()
+                    thumbnail_ext = '.png' if file_ext == '.png' else '.jpg'
+                    thumbnail_filename = f"thumb_{thumbnail_hash}{thumbnail_ext}"
+                    thumbnail_path = os.path.join(temp_dir, thumbnail_filename)
+
+                    # Generate thumbnail if it doesn't exist
+                    if not os.path.exists(thumbnail_path):
+                        image = Image.open(item_path)
+                        image.thumbnail((thumbnail_size, thumbnail_size))
+                        thumbnail_format = 'PNG' if image.mode == 'RGBA' else 'JPEG'
+                        image.save(thumbnail_path, thumbnail_format)
+
+                    item_info['thumbnail'] = thumbnail_filename
+                except Exception as e:
+                    print(f"Failed to create thumbnail for {item_name}: {e}")
+
+            # Generate thumbnails for videos
+            elif not is_dir and file_ext in FILE_TYPES['videos']:
+                try:
+                    # Thumbnail file name based on size
+                    file_identifier = f"{item_path}_{int(stat.st_mtime)}_{thumbnail_size*10}"
+                    thumbnail_hash = hashlib.md5(
+                        file_identifier.encode('utf-8')).hexdigest()
+                    thumbnail_filename = f"thumb_{thumbnail_hash}.jpg"
+                    thumbnail_path = os.path.join(temp_dir, thumbnail_filename)
+
+                    # Generate thumbnail if it doesn't exist
+                    if not os.path.exists(thumbnail_path):
+                        # Use ffmpeg to extract a frame at 00:00:01
+                        command = [
+                            'ffmpeg',
+                            '-i', item_path,
+                            '-ss', '00:00:01',
+                            '-vframes', '1',
+                            '-vf', f'scale={thumbnail_size}:-1',
+                            thumbnail_path
+                        ]
+                        subprocess.run(
+                            command, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+
+                    item_info['thumbnail'] = thumbnail_filename
+                except Exception as e:
+                    print(
+                        f"Failed to create video thumbnail for {item_name}: {e}")
+
+            items.append(item_info)
+
+    # Apply filtering
+    filtered_items = []
+    for item in items:
+        # Apply sub-file type filter first
+        if sub_file_type != 'all' and not item['is_dir']:
+            file_ext = os.path.splitext(item['name'])[1].lower()
+            if file_ext not in FILE_TYPES.get(sub_file_type, []):
+                continue  # Skip files that don't match the selected sub-type
+
+        # Then filter by type (dir, file, all)
+        if filter_type == 'dir' and not item['is_dir']:
+            continue
+        if filter_type == 'file' and item['is_dir']:
+            continue
+
+        # Filter by size
+        if size_min and item['size'] is not None and item['size'] < int(size_min):
+            continue
+        if size_max and item['size'] is not None and item['size'] > int(size_max):
+            continue
+
+        # Filter by date
+        if date_from:
+            date_from_dt = datetime.datetime.strptime(date_from, '%Y-%m-%d')
+            if item['modified'] < date_from_dt:
+                continue
+        if date_to:
+            date_to_dt = datetime.datetime.strptime(date_to, '%Y-%m-%d')
+            if item['modified'] > date_to_dt:
+                continue
+
+        filtered_items.append(item)
+
+    # Apply sorting
+    reverse = (sort_dir == 'desc')
+
+    # Define sort key function
+    def sort_key(item):
+        # Use empty string if sort_by key is None
+        return item.get(sort_by) or ''
+
+    # Ensure directories are listed first
+    filtered_items.sort(
+        key=lambda item: (not item['is_dir'], sort_key(item)),
+        reverse=reverse
+    )
+
+    response_data = {
+        'items': filtered_items,  # or 'filtered_items' after filtering
+        'current_path': path,
+        'base_dir': base_dir,
+        'thumbnail_size': thumbnail_size,
+        'is_private': False,
+        'q': request.GET.get('q', ''),
+        'sort_by': sort_by,
+        'sort_dir': sort_dir,
+        'filter_type': filter_type,
+        'file_type': sub_file_type,
+        'size_min': size_min,
+        'size_max': size_max,
+        'date_from': date_from,
+        'date_to': date_to,
+    }
+    return JsonResponse(response_data)  # json for react api
+
+
+def get_latest_mtime(directory):
+    latest_mtime = 0
+    for root, dirs, files in os.walk(directory):
+        for fname in files:
+            fpath = os.path.join(root, fname)
+            mtime = os.path.getmtime(fpath)
+            if mtime > latest_mtime:
+                latest_mtime = mtime
+    return latest_mtime
 
 
 def download_zip(request):
     relative_path = request.GET.get('path', '')
-    base_dir = BASE_DIR
+    base_dir = settings.BASE_DIR
     full_path = os.path.normpath(os.path.join(base_dir, relative_path))
 
     # Prevent directory traversal attacks
-    if not full_path.startswith(base_dir):
+    if not full_path.startswith(str(base_dir)):
         raise Http404("Invalid path")
 
     if not os.path.exists(full_path) or not os.path.isdir(full_path):
@@ -301,7 +676,8 @@ def download_zip(request):
 
         # Use 7z to create the zip file
         try:
-            subprocess.check_call(['7z', 'a', '-tzip', zip_path, full_path])
+            subprocess.check_call(
+                ['7z', 'a', '-tzip', '-mx=0', zip_path, full_path])
         except subprocess.CalledProcessError:
             return HttpResponse("Error creating zip file.", status=500)
 
@@ -312,19 +688,8 @@ def download_zip(request):
     return HttpResponseRedirect(zip_url)
 
 
-def get_latest_mtime(directory):
-    latest_mtime = 0
-    for root, dirs, files in os.walk(directory):
-        for fname in files:
-            fpath = os.path.join(root, fname)
-            mtime = os.path.getmtime(fpath)
-            if mtime > latest_mtime:
-                latest_mtime = mtime
-    return latest_mtime
-
-
 def download_file(request, path, filename):
-    file_path = os.path.join(BASE_DIR, path, filename)
+    file_path = os.path.join(settings.BASE_DIR, path, filename)
     if not os.path.exists(file_path):
         raise Http404("File does not exist")
     # Open the file for streaming the response
@@ -334,62 +699,6 @@ def download_file(request, path, filename):
     # Indicate that the server accepts byte-range requests
     response['Accept-Ranges'] = 'bytes'
     return response
-
-
-def stream_video(request, path, filename):
-    file_path = path
-    if not os.path.exists(file_path):
-        raise Http404("File does not exist")
-
-    # Get the file size and content type
-    file_size = os.path.getsize(file_path)
-    content_type, _ = mimetypes.guess_type(file_path)
-
-    # Determine the range request
-    range_header = request.headers.get('Range', '').strip()
-    range_match = re.match(r'bytes=(\d+)-(\d*)', range_header)
-    if range_match:
-        start = int(range_match.group(1))
-        end = range_match.group(2)
-        end = int(end) if end else file_size - 1
-    else:
-        start = 0
-        end = file_size - 1
-
-    # Calculate the content length and the actual start and end of the content to serve
-    content_length = (end - start) + 1
-
-    # Create a generator to stream the file in chunks
-    def file_stream(file, start, end, chunk_size=8192):
-        file.seek(start)
-        remaining_bytes = (end - start) + 1
-        while remaining_bytes > 0:
-            chunk = file.read(min(chunk_size, remaining_bytes))
-            if not chunk:
-                break
-            remaining_bytes -= len(chunk)
-            yield chunk
-
-    try:
-        # Open the file and use a generator for streaming, without closing it prematurely
-        file = open(file_path, 'rb')
-        response = StreamingHttpResponse(
-            file_stream(file, start, end),
-            content_type=content_type
-        )
-        response['Content-Length'] = str(content_length)
-        response['Content-Range'] = f'bytes {start}-{end}/{file_size}'
-        response['Accept-Ranges'] = 'bytes'
-        response['Content-Disposition'] = f'inline; filename="{filename}"'
-        response['Last-Modified'] = http_date(os.path.getmtime(file_path))
-        response.status_code = 206  # Partial content
-
-        # Do not close the file here! Let Django handle it with StreamingHttpResponse
-        return response
-    except BrokenPipeError:
-        print(
-            f"Client disconnected during streaming: {request.META.get('REMOTE_ADDR')}")
-        return HttpResponse(status=200)  # Return a simple OK response
 
 
 def video_stream_page(request, path, filename):
@@ -435,7 +744,7 @@ def admin_console(request):
     # Get the directory path from the query parameters
     path = request.GET.get('path', '')
     full_path = os.path.normpath(os.path.join(
-        BASE_DIR, path))  # Normalize full path
+        settings.BASE_DIR, path))  # Normalize full path
 
     # Check if the path exists
     if not os.path.exists(full_path):
@@ -444,7 +753,7 @@ def admin_console(request):
     items = []
     for item in os.listdir(full_path):
         item_path = os.path.join(full_path, item)
-        relative_path = os.path.relpath(item_path, BASE_DIR)
+        relative_path = os.path.relpath(item_path, settings.BASE_DIR)
         is_dir = os.path.isdir(item_path)
 
         # Check if the directory is public by checking if it's in the Directory table
@@ -474,7 +783,7 @@ def toggle_visibility(request):
     if request.method == 'POST':
         path = request.POST.get('path')
         full_path = os.path.normpath(os.path.join(
-            BASE_DIR, path))  # Normalize the path
+            settings.BASE_DIR, path))  # Normalize the path
         current_path = request.POST.get('current_path')
         # Check if "children" is included
         include_children = request.POST.get('include_children') == 'true'
@@ -578,3 +887,39 @@ def video_list(request):
     except Exception as e:
         logger.error(f"Error in video_list: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
+
+
+def category_list(request):
+    categories = FileTypeCategory.objects.all()
+    return render(request, 'serveradmin/category_list.html', {'categories': categories})
+
+
+def category_create(request):
+    if request.method == 'POST':
+        form = FileTypeCategoryForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect('category_list')
+    else:
+        form = FileTypeCategoryForm()
+    return render(request, 'serveradmin/category_form.html', {'form': form})
+
+
+def category_edit(request, pk):
+    category = get_object_or_404(FileTypeCategory, pk=pk)
+    if request.method == 'POST':
+        form = FileTypeCategoryForm(request.POST, instance=category)
+        if form.is_valid():
+            form.save()
+            return redirect('category_list')
+    else:
+        form = FileTypeCategoryForm(instance=category)
+    return render(request, 'serveradmin/category_form.html', {'form': form})
+
+
+def category_delete(request, pk):
+    category = get_object_or_404(FileTypeCategory, pk=pk)
+    if request.method == 'POST':
+        category.delete()
+        return redirect('category_list')
+    return render(request, 'serveradmin/category_confirm_delete.html', {'category': category})
