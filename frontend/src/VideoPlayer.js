@@ -1,23 +1,66 @@
-import React from "react";
+// VideoPlayer.js
+
+import React, { useEffect, useRef, useState } from "react";
+import Hls from "hls.js";
 import { useParams } from "react-router-dom";
-import "./VideoPlayer.css"; // Optional custom styles
+import axios from "axios";
 
-function VideoPlayer() {
-  const { relative_path } = useParams(); // Ensure this matches route param
-  const videoUrl = `/stream/${relative_path}`; // Direct use without double encoding
+const VideoPlayer = () => {
+  const { driveLetter, "*": pathParam } = useParams();
+  const videoRef = useRef(null);
+  const [playlistUrl, setPlaylistUrl] = useState(null);
+  const [errorMessage, setErrorMessage] = useState("");
+  const videoPath = encodeURIComponent(pathParam || "");
 
-  const handleVideoError = () => {
-    alert("Error loading video. Please try again later.");
-  };
+  useEffect(() => {
+    // Fetch playlist URL and other data from the backend
+    axios
+      .get(`/api/stream/${driveLetter}/${videoPath}/`)
+      .then((response) => {
+        const data = response.data;
+        setPlaylistUrl(data.playlist_url);
+      })
+      .catch((error) => {
+        setErrorMessage("Error fetching video stream");
+        console.error(error);
+      });
+  }, [driveLetter, videoPath]);
+
+  useEffect(() => {
+    if (playlistUrl && videoRef.current) {
+      const videoElement = videoRef.current;
+      if (Hls.isSupported()) {
+        const hls = new Hls();
+        hls.loadSource(playlistUrl);
+        hls.attachMedia(videoElement);
+        hls.on(Hls.Events.MANIFEST_PARSED, function () {
+          videoElement.play();
+        });
+      } else if (videoElement.canPlayType("application/vnd.apple.mpegurl")) {
+        // For Safari browsers
+        videoElement.src = playlistUrl;
+        videoElement.addEventListener("loadedmetadata", function () {
+          videoElement.play();
+        });
+      } else {
+        setErrorMessage("This browser does not support HLS");
+      }
+    }
+  }, [playlistUrl]);
+
+  if (errorMessage) {
+    return <div>{errorMessage}</div>;
+  }
 
   return (
-    <div className="video-player">
-      <video controls autoPlay width="800" onError={handleVideoError}>
-        <source src={videoUrl} type="video/mp4" />
-        Your browser does not support the video tag.
-      </video>
+    <div className="video-player-container">
+      <video
+        ref={videoRef}
+        controls
+        style={{ width: "100%", height: "auto" }}
+      ></video>
     </div>
   );
-}
+};
 
 export default VideoPlayer;

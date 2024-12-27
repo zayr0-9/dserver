@@ -5,10 +5,13 @@ import threading
 import signal
 
 
-def read_output(name, process):
-    for line in iter(process.stdout.readline, b''):
-        print(f"[{name}] {line.decode().strip()}")
-    process.stdout.close()
+def read_output(name, pipe):
+    for line in iter(pipe.readline, b''):
+        try:
+            decoded_line = line.decode('utf-8', errors='replace')
+        except UnicodeDecodeError:
+            decoded_line = line.decode('utf-8', errors='ignore')
+        print(f"[{name}] {decoded_line.strip()}")
 
 
 def main():

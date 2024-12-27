@@ -1,9 +1,10 @@
 // DriveContents.js
 
 import React, { useEffect, useState } from "react";
-import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { useParams, useNavigate, useLocation, Link } from "react-router-dom";
 import queryString from "query-string";
-import "./DriveContent.css";
+import styles from "./DriveContent.module.css";
+import axios from "axios";
 
 const DriveContents = () => {
   const { driveLetter, "*": pathParam } = useParams();
@@ -42,6 +43,14 @@ const DriveContents = () => {
     date_to: queryParams.date_to || "",
   });
 
+  // Pagination state
+  const [pagination, setPagination] = useState({
+    current_page: parseInt(queryParams.page) || 1,
+    page_size: parseInt(queryParams.page_size) || 100,
+    total_pages: 1,
+    total_items: 0,
+  });
+
   // Media Modal State
   const [mediaModalOpen, setMediaModalOpen] = useState(false);
   const [mediaItems, setMediaItems] = useState([]);
@@ -54,7 +63,16 @@ const DriveContents = () => {
   useEffect(() => {
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [driveLetter, currentPath, sorting, filtering, thumbnailSize]);
+  }, [
+    driveLetter,
+    currentPath,
+    sorting,
+    filtering,
+    thumbnailSize,
+    pagination.current_page,
+    pagination.page_size,
+    isPrivate,
+  ]);
 
   const fetchData = () => {
     setIsLoading(true); // Start loading
@@ -71,6 +89,8 @@ const DriveContents = () => {
       date_from: filtering.date_from,
       date_to: filtering.date_to,
       thumbnail_size: thumbnailSize,
+      page: pagination.current_page,
+      page_size: pagination.page_size,
     };
 
     const query = queryString.stringify(params);
@@ -102,6 +122,12 @@ const DriveContents = () => {
           setItems(data.items);
           setBaseDir(data.base_dir);
           setThumbnailSize(data.thumbnail_size.toString());
+          setPagination({
+            current_page: data.pagination.current_page,
+            page_size: data.pagination.page_size,
+            total_pages: data.pagination.total_pages,
+            total_items: data.pagination.total_items,
+          });
         }
         setIsLoading(false); // End loading
       })
@@ -110,6 +136,18 @@ const DriveContents = () => {
         setErrorMessage("Failed to load drive contents. Please try again.");
         setIsLoading(false); // End loading
       });
+  };
+
+  // Utility function to get CSRF token from cookies
+  const getCSRFToken = () => {
+    const name = "csrftoken";
+    const cookies = document.cookie.split(";").map((cookie) => cookie.trim());
+    for (let cookie of cookies) {
+      if (cookie.startsWith(name + "=")) {
+        return decodeURIComponent(cookie.substring(name.length + 1));
+      }
+    }
+    return "";
   };
 
   const handleSortingChange = (e) => {
@@ -136,6 +174,7 @@ const DriveContents = () => {
       ...queryParams,
       sort_by: sorting.sort_by,
       sort_dir: sorting.sort_dir,
+      page: 1, // Reset to first page on sort
     };
     const newQuery = queryString.stringify(params);
     navigate(`${location.pathname}?${newQuery}`);
@@ -146,6 +185,7 @@ const DriveContents = () => {
     const params = {
       ...queryParams,
       ...filtering,
+      page: 1, // Reset to first page on filter
     };
     const newQuery = queryString.stringify(params);
     navigate(`${location.pathname}?${newQuery}`);
@@ -156,9 +196,37 @@ const DriveContents = () => {
     const params = {
       ...queryParams,
       thumbnail_size: thumbnailSize,
+      page: 1, // Reset to first page on thumbnail size change
     };
     const newQuery = queryString.stringify(params);
     navigate(`${location.pathname}?${newQuery}`);
+  };
+
+  // Handle Pagination
+  const handlePageChange = (pageNumber) => {
+    const params = {
+      ...queryParams,
+      page: pageNumber,
+    };
+    const newQuery = queryString.stringify(params);
+    navigate(`${location.pathname}?${newQuery}`);
+  };
+
+  const handleNextPage = () => {
+    if (pagination.current_page < pagination.total_pages) {
+      handlePageChange(pagination.current_page + 1);
+    }
+  };
+
+  const handlePrevPage = () => {
+    if (pagination.current_page > 1) {
+      handlePageChange(pagination.current_page - 1);
+    }
+  };
+
+  // Handle specific page number click
+  const handlePageNumberClick = (pageNumber) => {
+    handlePageChange(pageNumber);
   };
 
   // Handle Media Modal interactions
@@ -183,6 +251,35 @@ const DriveContents = () => {
     );
   };
 
+  const handleDelete = (item) => {
+    if (window.confirm(`Are you sure you want to delete ${item.name}?`)) {
+      const data = {
+        base_dir: driveLetter,
+        relative_path: item.relative_path,
+      };
+
+      axios
+        .post("/api/delete/", data, {
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": getCSRFToken(),
+          },
+          withCredentials: true,
+        })
+        .then((response) => {
+          if (response.data.success) {
+            fetchData();
+          } else {
+            alert(response.data.error || "Failed to delete the item");
+          }
+        })
+        .catch((error) => {
+          console.error("Error deleting item: ", error);
+          alert("An error occurred while deleting the item");
+        });
+    }
+  };
+
   // Helper function to format bytes to human-readable form
   const formatSize = (bytes) => {
     if (bytes === 0) return "0 Bytes";
@@ -201,14 +298,15 @@ const DriveContents = () => {
         src: `/downloads/${driveLetter}/${encodeURIComponent(
           item.relative_path
         )}`,
-        thumbnail: `/thumbnails/${item.thumbnail}`,
+        thumbnail: `/transfer/thumbnails/${item.thumbnail}`,
+        itemRef: item,
         name: item.name,
         downloadUrl: `/downloads/${driveLetter}/${encodeURIComponent(
           item.relative_path
         )}`,
       }));
     setMediaItems(mediaFiles);
-  }, [items, driveLetter]);
+  }, [items, driveLetter, pagination]);
 
   // Handle PIN Submission
   const handlePinSubmit = (e) => {
@@ -251,120 +349,132 @@ const DriveContents = () => {
   };
 
   return (
-    <div className="drive-contents">
+    <div className={styles.driveContents}>
       {/* Top Bar */}
-      <div className="top-bar">
-        <h1>
+      <div className={styles.topBar}>
+        <h1 className={styles.h1}>
           File Transfer - {driveLetter}:\{currentPath}
         </h1>
-        <button className="option" onClick={() => navigate("/drive/")}>
+        <button className={styles.option} onClick={() => navigate("/drive/")}>
           Home
         </button>
-      </div>
-
-      {/* Forms Section */}
-      <div className="form-section">
-        {/* Sorting Form */}
-        <form onSubmit={handleSortingSubmit} id="sortingForm">
-          <label htmlFor="sort_by">Sort by:</label>
-          <select
-            name="sort_by"
-            id="sort_by"
-            value={sorting.sort_by}
-            onChange={handleSortingChange}
+        {/* "Upload More Files" Link */}
+        <div className={styles.uploadLink}>
+          <Link
+            to={`/upload?base_dir=${encodeURIComponent(
+              baseDir
+            )}&path=${encodeURIComponent(currentPath)}`}
+            className={styles.uploadLink}
           >
-            <option value="name">Name</option>
-            <option value="size">Size</option>
-            <option value="modified">Last Modified</option>
-            <option value="created">Creation Date</option>
-          </select>
+            Upload More Files
+          </Link>
+        </div>
 
-          <label htmlFor="sort_dir">Order:</label>
-          <select
-            name="sort_dir"
-            id="sort_dir"
-            value={sorting.sort_dir}
-            onChange={handleSortingChange}
-          >
-            <option value="asc">Ascending</option>
-            <option value="desc">Descending</option>
-          </select>
+        {/* Forms Section */}
+        <div className={styles.formSection}>
+          {/* Sorting Form */}
+          <form onSubmit={handleSortingSubmit} id="sortingForm">
+            <label htmlFor="sort_by">Sort by:</label>
+            <select
+              name="sort_by"
+              id="sort_by"
+              value={sorting.sort_by}
+              onChange={handleSortingChange}
+            >
+              <option value="name">Name</option>
+              <option value="size">Size</option>
+              <option value="modified">Last Modified</option>
+              <option value="created">Creation Date</option>
+            </select>
 
-          <button type="submit">Apply</button>
-        </form>
+            <label htmlFor="sort_dir">Order:</label>
+            <select
+              name="sort_dir"
+              id="sort_dir"
+              value={sorting.sort_dir}
+              onChange={handleSortingChange}
+            >
+              <option value="asc">Ascending</option>
+              <option value="desc">Descending</option>
+            </select>
 
-        {/* Filtering Form */}
-        <form onSubmit={handleFilteringSubmit} id="filteringForm">
-          <label htmlFor="filter_type">Type:</label>
-          <select
-            name="filter_type"
-            id="filter_type"
-            value={filtering.filter_type}
-            onChange={handleFilteringChange}
-          >
-            <option value="all">All</option>
-            <option value="dir">Directories</option>
-            <option value="file">Files</option>
-          </select>
+            <button type="submit">Apply</button>
+          </form>
 
-          <label htmlFor="file_type">File Type:</label>
-          <select
-            name="file_type"
-            id="file_type"
-            value={filtering.file_type}
-            onChange={handleFilteringChange}
-          >
-            <option value="all">All</option>
-            <option value="images">Images</option>
-            <option value="videos">Videos</option>
-            <option value="documents">Documents</option>
-            <option value="audio">Audio</option>
-            <option value="archives">Archives</option>
-          </select>
+          {/* Filtering Form */}
+          <form onSubmit={handleFilteringSubmit} id="filteringForm">
+            <label htmlFor="filter_type">Type:</label>
+            <select
+              name="filter_type"
+              id="filter_type"
+              value={filtering.filter_type}
+              onChange={handleFilteringChange}
+            >
+              <option value="all">All</option>
+              <option value="dir">Directories</option>
+              <option value="file">Files</option>
+            </select>
 
-          <label htmlFor="size_min">Size Min (bytes):</label>
-          <input
-            type="number"
-            name="size_min"
-            id="size_min"
-            value={filtering.size_min}
-            onChange={handleFilteringChange}
-            style={{ width: "100px" }}
-          />
+            <label htmlFor="file_type">File Type:</label>
+            <select
+              name="file_type"
+              id="file_type"
+              value={filtering.file_type}
+              onChange={handleFilteringChange}
+            >
+              <option value="all">All</option>
+              <option value="images">Images</option>
+              <option value="videos">Videos</option>
+              <option value="documents">Documents</option>
+              <option value="audio">Audio</option>
+              <option value="archives">Archives</option>
+            </select>
 
-          <label htmlFor="size_max">Size Max (bytes):</label>
-          <input
-            type="number"
-            name="size_max"
-            id="size_max"
-            value={filtering.size_max}
-            onChange={handleFilteringChange}
-            style={{ width: "100px" }}
-          />
+            <label htmlFor="size_min">Size Min (bytes):</label>
+            <input
+              type="number"
+              name="size_min"
+              id="size_min"
+              value={filtering.size_min}
+              onChange={handleFilteringChange}
+              min="0"
+            />
 
-          <label htmlFor="date_from">Date From:</label>
-          <input
-            type="date"
-            name="date_from"
-            id="date_from"
-            value={filtering.date_from}
-            onChange={handleFilteringChange}
-          />
+            <label htmlFor="size_max">Size Max (bytes):</label>
+            <input
+              type="number"
+              name="size_max"
+              id="size_max"
+              value={filtering.size_max}
+              onChange={handleFilteringChange}
+              min="0"
+            />
 
-          <label htmlFor="date_to">Date To:</label>
-          <input
-            type="date"
-            name="date_to"
-            id="date_to"
-            value={filtering.date_to}
-            onChange={handleFilteringChange}
-          />
+            <label htmlFor="date_from">Date From:</label>
+            <input
+              type="date"
+              name="date_from"
+              id="date_from"
+              value={filtering.date_from}
+              onChange={handleFilteringChange}
+            />
 
-          <button type="submit">Apply Filters</button>
-        </form>
+            <label htmlFor="date_to">Date To:</label>
+            <input
+              type="date"
+              name="date_to"
+              id="date_to"
+              value={filtering.date_to}
+              onChange={handleFilteringChange}
+            />
+
+            <button type="submit">Apply Filters</button>
+          </form>
+        </div>
 
         {/* Thumbnail Size Form */}
-        {/* <form onSubmit={handleThumbnailSizeSubmit}>
+        {/* Optional: Uncomment if needed
+        <form onSubmit={handleThumbnailSizeSubmit}>
           <label htmlFor="thumbnail_size">Thumbnail Size:</label>
           <select
             name="thumbnail_size"
@@ -379,32 +489,33 @@ const DriveContents = () => {
             <option value="2000">2000x2000</option>
           </select>
           <button type="submit">Apply</button>
-        </form> */}
+        </form>
+        */}
       </div>
 
       {/* Display Error Message */}
       {errorMessage && (
-        <div className="error-message">
+        <div className={styles.errorMessage}>
           <p style={{ color: "red" }}>{errorMessage}</p>
         </div>
       )}
 
       {/* Loading Indicator */}
-      {isLoading && <div className="loading-spinner">Loading...</div>}
+      {isLoading && <div className={styles.loadingSpinner}>Loading...</div>}
 
       {/* File Table */}
       <h2>Available Files and Directories</h2>
       <table>
         <colgroup>
           <col style={{ width: "100px" }} /> {/* Thumbnail */}
-          <col style={{ width: "100px" }} /> {/* Name */}
-          <col style={{ width: "30px" }} /> {/* Size */}
-          <col style={{ width: "50px" }} /> {/* Last Modified */}
-          <col style={{ width: "100px" }} /> {/* Actions */}
+          <col style={{ width: "200px" }} /> {/* Name */}
+          <col style={{ width: "100px" }} /> {/* Size */}
+          <col style={{ width: "150px" }} /> {/* Last Modified */}
+          <col style={{ width: "200px" }} /> {/* Actions */}
         </colgroup>
         <thead>
           <tr>
-            <th>Thumbnail</th>
+            <th style={{ width: "100px" }}>Thumbnail</th>
             <th>Name</th>
             <th>Size</th>
             <th>Last Modified</th>
@@ -436,18 +547,24 @@ const DriveContents = () => {
                       {item.name}
                     </a>
                   </td>
-                  <td>{item.size_formatted}</td>
+                  <td>{item.size ? formatSize(item.size) : "—"}</td>
                   <td>{item.modified}</td>
                   <td>
-                    <div className="action-buttons">
+                    <div className={styles.actionButtons}>
                       <a
                         href={`/download_zip/?path=${encodeURIComponent(
-                          item.relative_path
+                          item.relative_path.replace(/\\/g, "/")
                         )}&base_dir=${driveLetter}`}
-                        className="download"
+                        className={styles.download}
                       >
                         Download Zip
                       </a>
+                      <button
+                        className={styles.deleteButton}
+                        onClick={() => handleDelete(item)}
+                      >
+                        Delete
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -468,7 +585,7 @@ const DriveContents = () => {
                     <img
                       src={`/transfer/thumbnails/${item.thumbnail}`}
                       alt="Thumbnail"
-                      className="thumbnail"
+                      className={styles.thumbnail}
                       onClick={() => {
                         if (mediaIndex !== -1) {
                           openMediaModal(mediaIndex);
@@ -480,26 +597,36 @@ const DriveContents = () => {
                   <td>{item.size ? formatSize(item.size) : "—"}</td>
                   <td>{item.modified}</td>
                   <td>
-                    <div className="action-buttons">
+                    <div className={styles.actionButtons}>
                       <a
                         href={`/downloads/${driveLetter}/${encodeURIComponent(
                           item.relative_path
                         )}`}
                         download
-                        className="download"
+                        className={styles.download}
                       >
                         Download
                       </a>
                       {item.is_video && (
-                        <a
-                          href={`/stream/${driveLetter}/${encodeURIComponent(
-                            item.relative_path
-                          )}`}
-                          className="stream"
+                        <button
+                          className={styles.streamButton}
+                          onClick={() => {
+                            navigate(
+                              `/video-player/${driveLetter}/${encodeURIComponent(
+                                item.relative_path
+                              )}`
+                            );
+                          }}
                         >
                           Stream
-                        </a>
+                        </button>
                       )}
+                      <button
+                        className={styles.deleteButton}
+                        onClick={() => handleDelete(item)}
+                      >
+                        Delete
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -513,17 +640,35 @@ const DriveContents = () => {
                       📄
                     </span>
                   </td>
-                  <td>{item.name}</td>
+                  <td>
+                    {item.is_text ? (
+                      <a
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          navigate(
+                            `/edit/${driveLetter}/${encodeURIComponent(
+                              item.relative_path
+                            )}`
+                          );
+                        }}
+                      >
+                        {item.name}
+                      </a>
+                    ) : (
+                      item.name
+                    )}
+                  </td>
                   <td>{item.size ? formatSize(item.size) : "—"}</td>
                   <td>{item.modified}</td>
                   <td>
-                    <div className="action-buttons">
+                    <div className={styles.actionButtons}>
                       <a
                         href={`/downloads/${driveLetter}/${encodeURIComponent(
                           item.relative_path
                         )}`}
                         download
-                        className="download"
+                        className={styles.download}
                       >
                         Download
                       </a>
@@ -532,11 +677,17 @@ const DriveContents = () => {
                           href={`/stream/${driveLetter}/${encodeURIComponent(
                             item.relative_path
                           )}`}
-                          className="stream"
+                          className={styles.stream}
                         >
                           Stream
                         </a>
                       )}
+                      <button
+                        className={styles.deleteButton}
+                        onClick={() => handleDelete(item)}
+                      >
+                        Delete
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -546,52 +697,79 @@ const DriveContents = () => {
         </tbody>
       </table>
 
+      {/* Pagination Controls */}
+      <div className={styles.pagination}>
+        <button
+          onClick={handlePrevPage}
+          disabled={pagination.current_page === 1}
+          className={styles.paginationButton}
+        >
+          &laquo; Prev
+        </button>
+
+        <button
+          onClick={handleNextPage}
+          disabled={pagination.current_page === pagination.total_pages}
+          className={styles.paginationButton}
+        >
+          Next &raquo;
+        </button>
+      </div>
+
       {/* Media Modal */}
       {mediaModalOpen &&
         mediaItems.length > 0 &&
         mediaItems[currentMediaIndex] && (
-          <div className="modal" id="mediaModal">
+          <div className={styles.modal} id="mediaModal">
             {/* Close Button */}
-            <a href="#" className="close-modal" onClick={closeMediaModal}>
+            <span className={styles.closeModal} onClick={closeMediaModal}>
               &times;
-            </a>
+            </span>
 
             {/* Previous Button */}
-            <button className="prev-btn" onClick={prevMedia}>
+            <button className={styles.prevBtn} onClick={prevMedia}>
               &#10094;
             </button>
 
             {/* Modal Content */}
-            <div className="modal-content">
-              <div className="modal-media-container">
+            <div className={styles.modalContent}>
+              <div className={styles.modalMediaContainer}>
                 {mediaItems[currentMediaIndex].type === "image" ? (
                   <img
                     src={mediaItems[currentMediaIndex].src}
                     alt="Image"
-                    className="modal-media"
+                    className={styles.modalMedia}
                   />
                 ) : (
                   <video
                     src={mediaItems[currentMediaIndex].src}
                     controls
                     autoPlay
-                    className="modal-media"
+                    className={styles.modalMedia}
                   />
                 )}
               </div>
-              <div className="action-buttons">
-                <a
-                  href={mediaItems[currentMediaIndex].downloadUrl}
-                  download
-                  className="download"
-                >
-                  Download
-                </a>
-              </div>
+            </div>
+            <div className={styles.actionButtons}>
+              <a
+                href={mediaItems[currentMediaIndex].downloadUrl}
+                download
+                className={styles.download}
+              >
+                Download
+              </a>
+              <button
+                className={styles.deleteButton}
+                onClick={() =>
+                  handleDelete(mediaItems[currentMediaIndex].itemRef)
+                }
+              >
+                Delete
+              </button>
             </div>
 
             {/* Next Button */}
-            <button className="next-btn" onClick={nextMedia}>
+            <button className={styles.nextBtn} onClick={nextMedia}>
               &#10095;
             </button>
           </div>
@@ -599,8 +777,8 @@ const DriveContents = () => {
 
       {/* PIN Modal */}
       {isPrivate && (
-        <div className="modal active" id="pinModal">
-          <div className="modal-content">
+        <div className={styles.modal} id="pinModal">
+          <div className={styles.modalContent}>
             <h2>Enter Admin PIN to Access Directory</h2>
             <form onSubmit={handlePinSubmit} id="pinForm">
               <input

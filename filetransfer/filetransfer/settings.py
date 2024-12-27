@@ -83,29 +83,29 @@ MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
 
 ]
+CORS_ALLOW_CREDENTIALS = True
+CORS_ORIGIN_WHITELIST = [
+    'http://localhost:3000',
+    'http://192.168.0.82',
+    # Add other allowed origins
+]
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:3000',
+    'http://192.168.0.82',
+    # Add other trusted origins
+]
 
-# LOGGING = {
-#     'version': 1,
-#     'disable_existing_loggers': False,
-#     'handlers': {
-#         'file': {
-#             'level': 'DEBUG',
-#             'class': 'logging.FileHandler',
-#             # Store logs in debug.log in the project root
-#             'filename': os.path.join(BASE_DIR, 'debug.log'),
-#         },
-#     },
-#     'loggers': {
-#         'django': {
-#             'handlers': ['file'],
-#             'level': 'DEBUG',
-#             'propagate': True,
-#         },
-#     },
-# }
+CSRF_COOKIE_NAME = "csrftoken"
+CSRF_COOKIE_HTTPONLY = False  # Allows JavaScript to access the CSRF token
 # Allow all origins or specify allowed origins
 CORS_ALLOW_ALL_ORIGINS = True  # You can set it to True temporarily
 ROOT_URLCONF = 'filetransfer.urls'
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10485760000    # 100 MB
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://192.168.0.82",
+    # Add other allowed origins
+]
 
 TEMPLATES = [
     {
@@ -138,6 +138,49 @@ DATABASES = {
 }
 
 AUTH_USER_MODEL = 'auth.User'  # Or remove this line if it's not necessary
+# Logging Configuration
+# settings.py
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,  # Keep existing loggers
+    'formatters': {
+        'verbose': {
+            'format': '[{asctime}] {levelname} {name} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+            'level': 'DEBUG',  # Capture DEBUG level logs
+        },
+        'file': {
+            'level': 'DEBUG',  # Capture DEBUG level logs
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(BASE_DIR, 'debug.log'),
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console', 'file'],
+            'level': 'INFO',  # Adjust as needed
+            'propagate': True,
+        },
+        # Ensure your app's logger captures DEBUG logs
+        'transfer': {
+            'handlers': ['console', 'file'],
+            'level': 'DEBUG',
+            'propagate': True,
+        },
+    },
+}
 
 # Password validation
 # https://docs.djangoproject.com/en/5.0/ref/settings/#auth-password-validators

@@ -54,6 +54,12 @@ class FileTypeCategory(models.Model):
         return self.name
 
 
+class FileLock(models.Model):
+    file_path = models.CharField(max_length=1024, unique=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    timestamp = models.DateTimeField(auto_now=True)
+
+
 class FileMetadata(models.Model):
     name = models.CharField(max_length=255)
     relative_path = models.CharField(max_length=1024, unique=True)

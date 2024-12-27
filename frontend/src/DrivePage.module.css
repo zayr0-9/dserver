@@ -1,0 +1,58 @@
+
+  /* Body styling */
+  .drives body {
+    font-family: Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    background-color: #1d1d1d;
+    color: #000000;
+  }
+
+  /* Header */
+  .drives h1 {
+    font-size: 2.5em;
+    margin-bottom: 20px;
+    color: #fff;
+  }
+
+  /* Unordered list styling */
+  .drives ul {
+    list-style: none;
+    padding: 0;
+  }
+
+  /* List items */
+  .drives li {
+    margin: 15px 0;
+  }
+
+.drives a {
+  font-size: 2em;
+  padding: 15px 25px;
+  background-color: #555;
+  color: #fff;
+  text-decoration: none;
+  border-radius: 10px;
+  transition: background-color 0.3s, transform 0.2s;
+  display: inline-block;
+  /* width: 100%; Make it full-width for touch targets */
+  text-align: center;
+}
+
+
+   /* Hover and focus states */
+   .drives a:hover,
+   .drives a:focus {
+    background-color: #777;
+    transform: scale(1.05);
+  } 
+
+  /* Ensure touch targets are large enough */
+  /* @media (pointer: coarse) {
+    a {
+      padding: 20px 40px;
+    }
+  } */

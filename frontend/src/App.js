@@ -1,17 +1,51 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
 import ServerHomePage from "./ServerHomePage";
 import DrivePage from "./DrivePage";
 import DriveContents from "./DriveContent";
+import FileUpload from "./FileUpload";
+import FileEditor from "./Editor";
+import { getCSRFToken } from "./utils";
+import axios from "axios";
+import VideoPlayer from "./VideoPlayer";
 // import AdminPage
 function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  useEffect(() => {
+    // Fetch CSRF token
+    axios
+      .get("/api/auth/csrf/", { withCredentials: true })
+      .then((response) => {
+        console.log("CSRF token fetched successfully");
+      })
+      .catch((error) => {
+        console.error("Error fetching CSRF token:", error);
+      });
+
+    // Check authentication status
+    axios
+      .get("/api/auth/check/", { withCredentials: true })
+      .then((response) => {
+        setIsAuthenticated(response.data.isAuthenticated);
+      })
+      .catch((error) => {
+        console.error("Error checking authentication:", error);
+      });
+  }, []);
+
   return (
     <Router>
       <Routes>
+        {/* <Route
+          path="/login/"
+          element={<Login setIsAuthenticated={setIsAuthenticated} />}
+        /> */}
         <Route exact path="/" element={<ServerHomePage />} />
         <Route path="/drive/" element={<DrivePage />} />
         <Route path="/drive/:driveLetter/*" element={<DriveContents />} />
-
+        <Route path="/upload/" element={<FileUpload />} />
+        <Route path="/edit/:driveLetter/*" element={<FileEditor />} />
+        <Route path="/video-player/:driveLetter/*" element={<VideoPlayer />} />
         {/* Define route for other components here*/}
         {/* <Route path="/theatre-mode" element={TheatreMode} />
         <Route path="/admin" element={AdminPage} /> */}

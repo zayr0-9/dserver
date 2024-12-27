@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-// import "./DrivePage.css";
+import styles from "./DrivePage.module.css";
 
 const DrivePage = () => {
   const [drives, setDrives] = useState([]);
@@ -13,15 +13,17 @@ const DrivePage = () => {
   }, []);
 
   return (
-    <div>
-      <h1> Select a Drive to Browse</h1>
-      <ul>
-        {drives.map((drive) => (
-          <li key={drive}>
-            <Link to={`/drive/${drive}/`}>{drive}:/</Link>
-          </li>
-        ))}
-      </ul>
+    <div className={styles.drives}>
+      <div className={styles.body}>
+        <h1 className={styles.h1}> Select a Drive to Browse</h1>
+        <ul className={styles.ul}>
+          {drives.map((drive) => (
+            <li className={styles.li} key={drive}>
+              <Link to={`/drive/${drive}/`}>{drive}:/</Link>
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 };

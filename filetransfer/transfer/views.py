@@ -1,24 +1,24 @@
+
+from math import ceil
+from threading import Thread
+import glob
 from django.http import JsonResponse
 from django.core.paginator import Paginator
 from django.shortcuts import render, redirect, get_object_or_404
-from django.http import HttpResponse, Http404, HttpResponseRedirect, StreamingHttpResponse, FileResponse, JsonResponse
+from django.http import HttpResponse, Http404, HttpResponseRedirect, FileResponse, JsonResponse, StreamingHttpResponse
 import os
 import datetime
-import shutil
-import re
-import mimetypes
+import time
+from django.views.decorators.http import require_POST
 import hashlib
 import subprocess
-import requests
 import json
 from PIL import Image
-from django.utils.http import http_date
-from moviepy.editor import VideoFileClip
+import threading
 from urllib.parse import quote
-from transfer.models import FileSearchMetadata, Movie
+from transfer.models import FileSearchMetadata, Movie, FileLock, FileTypeCategory
 from django.db.models import Q
 from .models import Directory, Movie
-from django.views.decorators.clickjacking import xframe_options_exempt
 from django.views.decorators.csrf import csrf_exempt
 import logging
 from pathlib import Path
@@ -26,9 +26,14 @@ from urllib.parse import unquote, quote
 import string
 from ctypes import windll
 from django.conf import settings
-from .models import FileTypeCategory
 from .forms import FileTypeCategoryForm
-
+import logging
+from django.views.decorators.http import require_http_methods
+from django.db import transaction
+from django.utils import timezone
+from django.contrib.auth import authenticate, login, logout
+from django.views.decorators.csrf import ensure_csrf_cookie
+from django.views.decorators.http import require_GET
 
 # logger = logging.getLogger(__name__)
 
@@ -37,72 +42,125 @@ from .forms import FileTypeCategoryForm
 ADMIN_PIN = "12345"
 
 
-def file_upload(request):
-    # upload_dir = os.path.join(BASE_DIR, 'uploads')
-    # os.makedirs(upload_dir, exist_ok=True)
-    base_dir = request.GET.get('base_dir')
-    relative_path = request.GET.get('path', ' ').lstrip('/\\')
+logger = logging.getLogger(__name__)
 
-    if base_dir and relative_path:
-        upload_dir = os.path.join(f"{base_dir}:/", relative_path)
+
+@require_POST
+def api_login(request):
+    import json
+    data = json.loads(request.body)
+    username = data.get('username')
+    password = data.get('password')
+    user = authenticate(request, username=username, password=password)
+    if user is not None:
+        login(request, user)
+        return JsonResponse({'success': True})
     else:
-        upload_dir = os.path.join(settings.BASE_DIR, 'uploads')
+        return JsonResponse({'error': 'Invalid credentials'}, status=401)
 
-    os.makedirs(upload_dir, exist_ok=True)
 
-    if request.method == 'POST' and request.FILES.getlist('files'):
-        uploaded_files = request.FILES.getlist('files')
-        uploaded_file_paths = []
-        thumbnails = []
+@require_POST
+def api_logout(request):
+    logout(request)
+    return JsonResponse({'success': True})
 
-        for uploaded_file in uploaded_files:
-            file_path = os.path.join(upload_dir, uploaded_file.name)
-            with open(file_path, 'wb+') as destination:
-                for chunk in uploaded_file.chunks():
-                    destination.write(chunk)
 
-            # Process video files for thumbnails
-            if uploaded_file.name.lower().endswith(('.mp4', '.avi', '.mov', '.webm', '.mkv')):
-                clip = None
-                try:
-                    clip = VideoFileClip(file_path)
-                    frame = clip.get_frame(t=1)  # Get frame at 1 second
-                    img = Image.fromarray(frame)
-                    img.thumbnail((100, 100))
-                    thumbnail_path = os.path.join(
-                        upload_dir, f'thumb_{uploaded_file.name}.jpg')
-                    img.save(thumbnail_path, 'JPEG')
-                    thumbnails.append(os.path.basename(thumbnail_path))
-                except Exception as e:
-                    print(f"Error processing video {uploaded_file.name}: {e}")
-                finally:
-                    if clip:
-                        clip.reader.close()  # Ensure the video reader is closed
-                        clip.close()  # Close the video clip explicitly
+@ensure_csrf_cookie
+def get_csrf_token(request):
+    # This view just triggers the setting of the CSRF cookie
+    return JsonResponse({'success': True})
 
-            uploaded_file_paths.append(file_path)
 
-        # Send notification to Node.js server
+def file_upload(request, base_dir, relative_path):
+    """
+    Handle file uploads to the specified directory.
+    """
+    logger.debug(
+        f"Received file upload request: base_dir={base_dir}, relative_path={relative_path}")
+
+    # Sanitize base_dir and relative_path to prevent directory traversal
+    base_dir = os.path.normpath(base_dir)
+    relative_path = os.path.normpath(relative_path)
+
+    # Prevent directory traversal
+    if '..' in base_dir or '..' in relative_path:
+        logger.warning("Directory traversal attempt detected.")
+        return JsonResponse({'error': 'Invalid directory path.'}, status=400)
+
+    # Handle empty relative_path
+    if relative_path in ('', '.'):
+        relative_path = 'Uploads'  # Default upload directory, adjust as needed
+
+    # Construct the absolute upload directory path
+    if os.name == 'nt':  # Windows
+        upload_dir = f"{base_dir}:\\{relative_path}"
+    else:  # Unix/Linux
+        upload_dir = os.path.join(base_dir, relative_path)
+
+    logger.debug(f"Constructed upload directory path: {upload_dir}")
+
+    # Ensure the upload directory exists
+    try:
+        os.makedirs(upload_dir, exist_ok=True)
+    except Exception as e:
+        logger.error(f"Failed to create upload directory: {e}")
+        return JsonResponse({'error': 'Failed to create upload directory.'}, status=500)
+
+    # Check write permissions
+    if not os.access(upload_dir, os.W_OK):
+        logger.error(f"No write permission for directory: {upload_dir}")
+        return JsonResponse({'error': 'No write permission for the specified directory.'}, status=403)
+
+    if 'files' not in request.FILES:
+        logger.warning("No files found in the request.")
+        return JsonResponse({'error': 'No files uploaded'}, status=400)
+
+    files = request.FILES.getlist('files')
+    uploaded_files = []
+
+    for file in files:
+        filename = file.name
+
+        # Validate file extension
+        ext = os.path.splitext(filename)[1].lower()
+        # if ext not in ALLOWED_EXTENSIONS:
+        #     logger.warning(f"Attempt to upload disallowed file type: {filename}")
+        #     return JsonResponse({'error': f'File type {ext} not allowed.'}, status=400)
+
+        # Prevent uploading files with absolute paths
+        if os.path.isabs(filename):
+            logger.warning(
+                f"Attempt to upload file with absolute path: {filename}")
+            return JsonResponse({'error': 'Invalid file name.'}, status=400)
+
+        # Construct the full file path
+        file_path = os.path.join(upload_dir, filename)
+        logger.debug(f"Uploading file to: {file_path}")
+
         try:
-            response = requests.post('http://localhost:3000/upload-success',
-                                     data=json.dumps(
-                                         {'message': 'File upload successful!'}),
-                                     headers={'Content-Type': 'application/json'})
-        except requests.ConnectionError as e:
-            print(f"Node.js server connection failed: {e}")
+            with open(file_path, 'wb+') as destination:
+                for chunk in file.chunks():
+                    destination.write(chunk)
+            uploaded_files.append(filename)
+            logger.info(f"Successfully uploaded: {file_path}")
 
-        # Return the list of uploaded file paths and thumbnails
-        return render(request, 'upload.html', {
-            'file_paths': uploaded_file_paths,
-            'thumbnails': thumbnails,
-            'base_dir': base_dir,
-            'current_path': relative_path
-        })
+            # Set file permissions to read-write for the owner only (Windows)
+            if os.name == 'nt':
+                import ctypes
+                FILE_ATTRIBUTE_NORMAL = 0x80
+                ctypes.windll.kernel32.SetFileAttributesW(
+                    file_path, FILE_ATTRIBUTE_NORMAL)
+            else:
+                os.chmod(file_path, 0o600)
 
-    return render(request, 'upload.html', {
-        'base_dir': base_dir,
-        'current_path': relative_path
-    })
+        except PermissionError as pe:
+            logger.error(f"Permission denied: {pe}")
+            return JsonResponse({'error': f'Permission denied for file: {filename}'}, status=403)
+        except Exception as e:
+            logger.error(f"Error uploading file {filename}: {e}")
+            return JsonResponse({'error': f'Error uploading file: {filename}'}, status=500)
+
+    return JsonResponse({'success': True, 'uploaded_files': uploaded_files}, status=200)
 
 
 def search_files(request):
@@ -192,227 +250,168 @@ def get_drives():
     return drives
 
 
-def file_list(request, base_dir='', path=''):
-    base_dir = unquote(base_dir)
-    path = unquote(path).lstrip('/\\')
+@require_http_methods(["POST"])
+def delete_item(request):
+    data = json.loads(request.body)
+    base_dir = data.get('base_dir')
+    relative_path = data.get('relative_path')
+    if not base_dir or not relative_path:
+        return JsonResponse({'error': 'Invalid parameters'}, status=400)
 
-    # Boolean to control whether hidden files are shown
-    show_hidden_files = False  # Default is False; can be updated from admin settings
+    if len(base_dir) == 1 and base_dir.isalpha():
+        base_dir = base_dir + ':\\'
 
-    # Sorting parameters
-    sort_by = request.GET.get('sort_by', 'name')  # Default sort by name
-    sort_dir = request.GET.get('sort_dir', 'asc')  # Default ascending order
-
-    # Filtering parameters
-    filter_type = request.GET.get('type', 'all')  # 'all', 'dir', 'file'
-    size_min = request.GET.get('size_min')
-    size_max = request.GET.get('size_max')
-    date_from = request.GET.get('date_from')
-    date_to = request.GET.get('date_to')
-    sub_file_type = request.GET.get('file_type', 'all')  # Sub-file type filter
-
-    # Define file type extensions
-    FILE_TYPES = {
-        'images': ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff'],
-        'videos': ['.mp4', '.avi', '.mov', '.webm', '.mkv'],
-        'documents': ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.txt'],
-        'audio': ['.mp3', '.wav', '.aac', '.flac'],
-        'archives': ['.zip', '.rar', '.7z', '.tar', '.gz']
-    }
-
-    if not base_dir:
-        return redirect('drives')
-
-    base_dir_with_drive = f"{base_dir}:\\"
-    full_path = os.path.normpath(os.path.join(base_dir_with_drive, path))
+    full_path = os.path.normpath(os.path.join(base_dir, relative_path))
+    if not full_path.startswith(os.path.abspath(base_dir)):
+        return JsonResponse({'error': 'Invalid path'}, status=400)
 
     if not os.path.exists(full_path):
-        raise Http404("Directory does not exist")
+        return JsonResponse({'error': 'File or directory does not exist'}, status=404)
 
-    if not full_path.startswith(os.path.normpath(base_dir)):
-        raise Http404("Access denied")
+    # begin deletion
+    try:
+        if os.path.isfile(full_path):
+            os.remove(full_path)
+        elif os.path.isdir(full_path):
+            os.rmdir(full_path)
+        else:
+            return JsonResponse({'error': 'Unknown file type'}, status=400)
+        return JsonResponse({'success': True})
+    except Exception as e:
+        logger.error(f"Error deleting item at {full_path}: {e}")
+        return JsonResponse({'error': 'Error deleting item'}, status=400)
 
-    # Check if the directory is private
-    directory_entry = Directory.objects.filter(path=full_path).first()
-    session_key = f"admin_pin_valid_{base_dir}_{path}"
+# helper function for TextEditor
 
-    if not directory_entry and not request.session.get(session_key, False):
-        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' and request.method == 'POST':
-            entered_pin = request.POST.get('pin', None)
-            if entered_pin == ADMIN_PIN:
-                request.session[session_key] = True
-                return JsonResponse({'success': True})
+
+file_locks = {}  # temporary move to database
+LOCK_TIMEOUT = 300  # Lock expires after 5 minutes
+
+
+def clean_expired_locks():
+    current_time = time.time()
+    with threading.Lock():
+        for lock_key in list(file_locks.keys()):
+            lock_info = file_locks[lock_key]
+            if current_time - lock_info['timestamp'] > LOCK_TIMEOUT:
+                del file_locks[lock_key]
+
+
+@require_POST
+def get_file_content(request):
+    data = json.loads(request.body)
+    base_dir = data.get('base_dir')
+    relative_path = data.get('relative_path')
+
+    if not base_dir or not relative_path:
+        return JsonResponse({'error': 'Invalid parameters'}, status=400)
+
+    # Adjust base_dir
+    if len(base_dir) == 1 and base_dir.isalpha():
+        base_dir = base_dir + ':\\'
+
+    full_path = os.path.normpath(os.path.join(base_dir, relative_path))
+
+    # Security checks
+    if not os.path.isfile(full_path):
+        return JsonResponse({'error': 'File does not exist'}, status=404)
+
+    # Prevent directory traversal
+    if not full_path.startswith(os.path.abspath(base_dir)):
+        return JsonResponse({'error': 'Invalid path'}, status=400)
+    current_user = request.user
+    try:
+        with transaction.atomic():
+            # Clean up expired locks
+            expiry_time = timezone.now() - timezone.timedelta(seconds=LOCK_TIMEOUT)
+            FileLock.objects.filter(timestamp__lt=expiry_time).delete()
+
+            # Try to obtain the lock
+            file_lock, created = FileLock.objects.get_or_create(
+                file_path=full_path,
+                defaults={'user': current_user, 'timestamp': timezone.now()}
+            )
+
+            if not created and file_lock.user != current_user:
+                return JsonResponse({'error': 'File is currently being edited by another user.'}, status=409)
             else:
-                return JsonResponse({'success': False, 'error': 'Incorrect PIN. Please try again.'})
+                # Update the lock timestamp and user
+                file_lock.user = current_user
+                file_lock.timestamp = timezone.now()
+                file_lock.save()
 
-        return render(request, 'file_list.html', {
-            'items': [],
-            'current_path': path,
-            'base_dir': base_dir,
-            'thumbnail_size': 500,
-            'is_private': True,
-            'q': request.GET.get('q', '')
-        })
+        with open(full_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        file_name = os.path.basename(full_path)
+        return JsonResponse({'success': True, 'content': content, 'name': file_name})
+    except Exception as e:
+        logger.error(f"Error reading file at {full_path}: {e}")
+        return JsonResponse({'error': 'Error reading file'}, status=500)
 
-    # Default size is 100x100 for thumbnails
-    thumbnail_size = 100
-    temp_dir = os.path.join(settings.BASE_DIR, 'temp_thumbnails')
-    os.makedirs(temp_dir, exist_ok=True)
 
-    items = []
-    with os.scandir(full_path) as entries:
-        for entry in entries:
-            # Skip hidden files if show_hidden_files is False
-            if not show_hidden_files and entry.name.startswith('.'):
-                continue
+def is_text_file(file_path):
+    # logger.debug(f"checking if file is text at path : {file_path}")
+    text_extensions = ['.txt', '.py', '.js', '.html', '.css',
+                       '.json', '.md', '.java', '.c', '.cpp']  # Extend as needed
 
-            item_name = entry.name
-            item_path = entry.path
-            is_dir = entry.is_dir(follow_symlinks=False)
-            stat = entry.stat(follow_symlinks=False)
-            size = stat.st_size if not is_dir else None
-            modified = datetime.datetime.fromtimestamp(stat.st_mtime)
-            created = datetime.datetime.fromtimestamp(stat.st_ctime)
-            relative_path = os.path.join(path, item_name)
-            file_ext = os.path.splitext(item_name)[1].lower()
+    # logger.debug(os.path.splitext(file_path)[1].lower()
+    #              )
+    return os.path.splitext(file_path)[1].lower() in text_extensions
 
-            # Determine if the file is a video
-            video_extensions = tuple(FILE_TYPES['videos'])
-            is_video = not is_dir and file_ext in video_extensions
 
-            item_info = {
-                'name': item_name,
-                'path': path,
-                'relative_path': relative_path,
-                'is_dir': is_dir,
-                'size': size,
-                'modified': modified,
-                'created': created,
-                'thumbnail': None,
-                'is_video': is_video
-            }
+@require_POST
+def save_file_content(request):
+    data = json.loads(request.body)
+    base_dir = data.get('base_dir')
+    relative_path = data.get('relative_path')
+    content = data.get('content')
 
-            # Generate thumbnails for images
-            if not is_dir and file_ext in FILE_TYPES['images']:
-                try:
-                    # Thumbnail file name based on size
-                    file_identifier = f"{item_path}_{int(stat.st_mtime)}_{thumbnail_size}"
-                    thumbnail_hash = hashlib.md5(
-                        file_identifier.encode('utf-8')).hexdigest()
-                    thumbnail_ext = '.png' if file_ext == '.png' else '.jpg'
-                    thumbnail_filename = f"thumb_{thumbnail_hash}{thumbnail_ext}"
-                    thumbnail_path = os.path.join(temp_dir, thumbnail_filename)
+    if not base_dir or not relative_path or content is None:
+        return JsonResponse({'error': 'Invalid parameters'}, status=400)
 
-                    # Generate thumbnail if it doesn't exist
-                    if not os.path.exists(thumbnail_path):
-                        image = Image.open(item_path)
-                        image.thumbnail((thumbnail_size, thumbnail_size))
-                        thumbnail_format = 'PNG' if image.mode == 'RGBA' else 'JPEG'
-                        image.save(thumbnail_path, thumbnail_format)
+    # Adjust base_dir as needed
+    if len(base_dir) == 1 and base_dir.isalpha():
+        base_dir = base_dir + ':\\'
 
-                    item_info['thumbnail'] = thumbnail_filename
-                except Exception as e:
-                    print(f"Failed to create thumbnail for {item_name}: {e}")
+    full_path = os.path.normpath(os.path.join(base_dir, relative_path))
 
-            # Generate thumbnails for videos
-            elif not is_dir and file_ext in FILE_TYPES['videos']:
-                try:
-                    # Thumbnail file name based on size
-                    file_identifier = f"{item_path}_{int(stat.st_mtime)}_{thumbnail_size*10}"
-                    thumbnail_hash = hashlib.md5(
-                        file_identifier.encode('utf-8')).hexdigest()
-                    thumbnail_filename = f"thumb_{thumbnail_hash}.jpg"
-                    thumbnail_path = os.path.join(temp_dir, thumbnail_filename)
+    # Security checks
+    if not full_path.startswith(os.path.abspath(base_dir)):
+        return JsonResponse({'error': 'Invalid path'}, status=400)
 
-                    # Generate thumbnail if it doesn't exist
-                    if not os.path.exists(thumbnail_path):
-                        # Use ffmpeg to extract a frame at 00:00:01
-                        command = [
-                            'ffmpeg',
-                            '-i', item_path,
-                            '-ss', '00:00:01',
-                            '-vframes', '1',
-                            '-vf', f'scale={thumbnail_size}:-1',
-                            thumbnail_path
-                        ]
-                        subprocess.run(
-                            command, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+    # Optional: Check if the user has write permissions
+    if not os.access(full_path, os.W_OK):
+        return JsonResponse({'error': 'No write permission for this file'}, status=403)
 
-                    item_info['thumbnail'] = thumbnail_filename
-                except Exception as e:
-                    print(
-                        f"Failed to create video thumbnail for {item_name}: {e}")
+    current_user = request.user
 
-            items.append(item_info)
+    try:
+        with transaction.atomic():
+            # Verify that the current user holds the lock
+            try:
+                file_lock = FileLock.objects.get(file_path=full_path)
+                if file_lock.user != current_user:
+                    return JsonResponse({'error': 'You do not have permission to save this file.'}, status=403)
+            except FileLock.DoesNotExist:
+                return JsonResponse({'error': 'No lock found for this file.'}, status=403)
 
-    # Apply filtering
-    filtered_items = []
-    for item in items:
-        # Apply sub-file type filter first
-        if sub_file_type != 'all' and not item['is_dir']:
-            file_ext = os.path.splitext(item['name'])[1].lower()
-            if file_ext not in FILE_TYPES.get(sub_file_type, []):
-                continue  # Skip files that don't match the selected sub-type
+            # Save the file
+            with open(full_path, 'w', encoding='utf-8') as f:
+                f.write(content)
 
-        # Then filter by type (dir, file, all)
-        if filter_type == 'dir' and not item['is_dir']:
-            continue
-        if filter_type == 'file' and item['is_dir']:
-            continue
+            # Release the lock
+            file_lock.delete()
 
-        # Filter by size
-        if size_min and item['size'] is not None and item['size'] < int(size_min):
-            continue
-        if size_max and item['size'] is not None and item['size'] > int(size_max):
-            continue
+        return JsonResponse({'success': True})
+    except Exception as e:
+        logger.error(f"Error writing to file at {full_path}: {e}")
+        return JsonResponse({'error': 'Error saving file'}, status=500)
 
-        # Filter by date
-        if date_from:
-            date_from_dt = datetime.datetime.strptime(date_from, '%Y-%m-%d')
-            if item['modified'] < date_from_dt:
-                continue
-        if date_to:
-            date_to_dt = datetime.datetime.strptime(date_to, '%Y-%m-%d')
-            if item['modified'] > date_to_dt:
-                continue
-
-        filtered_items.append(item)
-
-    # Apply sorting
-    reverse = (sort_dir == 'desc')
-
-    # Define sort key function
-    def sort_key(item):
-        # Use empty string if sort_by key is None
-        return item.get(sort_by) or ''
-
-    # Ensure directories are listed first
-    filtered_items.sort(
-        key=lambda item: (not item['is_dir'], sort_key(item)),
-        reverse=reverse
-    )
-
-    context = {
-        'items': filtered_items,
-        'current_path': path,
-        'base_dir': base_dir,
-        'thumbnail_size': thumbnail_size,
-        'is_private': False,
-        'q': request.GET.get('q', ''),
-        'sort_by': sort_by,
-        'sort_dir': sort_dir,
-        'filter_type': filter_type,
-        'file_type': sub_file_type,
-        'size_min': size_min,
-        'size_max': size_max,
-        'date_from': date_from,
-        'date_to': date_to,
-    }
-
-    return render(request, 'file_list.html', context)
+# @require_GET
 
 
 def file_list_api(request, drive_letter):
+    logger.debug("Testing logging configuration.")
     base_dir = unquote(drive_letter)
     path = unquote(request.GET.get('path', '')).lstrip('/\\')
 
@@ -431,6 +430,16 @@ def file_list_api(request, drive_letter):
     date_to = request.GET.get('date_to')
     sub_file_type = request.GET.get('file_type', 'all')  # Sub-file type filter
 
+    # Pagination parameters
+    try:
+        page = int(request.GET.get('page', '1'))
+        page_size = int(request.GET.get('page_size', '100'))
+        if page < 1:
+            page = 1
+    except ValueError:
+        page = 1
+        page_size = 100
+
     # Define file type extensions
     FILE_TYPES = {
         'images': ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff'],
@@ -441,7 +450,7 @@ def file_list_api(request, drive_letter):
     }
 
     if not base_dir:
-        return redirect('drives')
+        return JsonResponse({'error': 'Base directory not specified'}, status=400)
 
     base_dir_with_drive = f"{base_dir}:\\"
     full_path = os.path.normpath(os.path.join(base_dir_with_drive, path))
@@ -449,24 +458,13 @@ def file_list_api(request, drive_letter):
     if not os.path.exists(full_path):
         raise Http404("Directory does not exist")
 
-    if not full_path.startswith(os.path.normpath(base_dir)):
+    if not full_path.startswith(os.path.normpath(base_dir_with_drive)):
         raise Http404("Access denied")
 
-    # Check if the directory is private
-    directory_entry = Directory.objects.filter(path=full_path).first()
-    session_key = f"admin_pin_valid_{base_dir}_{path}"
-
-    if not directory_entry and not request.session.get(session_key, False):
-        if request.method == 'POST' and request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            entered_pin = request.POST.get('pin', None)
-            if entered_pin == ADMIN_PIN:
-                request.session[session_key] = True
-                return JsonResponse({'success': True})
-            else:
-                return JsonResponse({'success': False, 'error': 'Incorrect PIN. Please try again.'}, status=401)
-        else:
-            # Return JSON indicating the directory is private
-            return JsonResponse({'is_private': True}, status=401)
+    # Check if the directory is private (Assuming Directory model exists)
+    # directory_entry = Directory.objects.filter(path=full_path).first()
+    # session_key = f"admin_pin_valid_{base_dir}_{path}"
+    # Implement access control as needed
 
     # Default size is 100x100 for thumbnails
     thumbnail_size = 100
@@ -483,11 +481,16 @@ def file_list_api(request, drive_letter):
             item_name = entry.name
             item_path = entry.path
             is_dir = entry.is_dir(follow_symlinks=False)
-            stat = entry.stat(follow_symlinks=False)
+            try:
+                stat = entry.stat(follow_symlinks=False)
+            except FileNotFoundError:
+                continue  # Skip if file was removed during scanning
             size = stat.st_size if not is_dir else None
-            modified = datetime.datetime.fromtimestamp(stat.st_mtime)
-            created = datetime.datetime.fromtimestamp(stat.st_ctime)
-            relative_path = os.path.join(path, item_name)
+            modified = datetime.datetime.fromtimestamp(
+                stat.st_mtime).isoformat()
+            created = datetime.datetime.fromtimestamp(
+                stat.st_ctime).isoformat()
+            relative_path = os.path.join(path, item_name).replace('\\', '/')
             file_ext = os.path.splitext(item_name)[1].lower()
 
             # Determine if the file is a video
@@ -503,7 +506,8 @@ def file_list_api(request, drive_letter):
                 'modified': modified,
                 'created': created,
                 'thumbnail': None,
-                'is_video': is_video
+                'is_video': is_video,
+                'is_text': is_text_file(item_name),
             }
 
             # Generate thumbnails for images
@@ -519,14 +523,15 @@ def file_list_api(request, drive_letter):
 
                     # Generate thumbnail if it doesn't exist
                     if not os.path.exists(thumbnail_path):
-                        image = Image.open(item_path)
-                        image.thumbnail((thumbnail_size, thumbnail_size))
-                        thumbnail_format = 'PNG' if image.mode == 'RGBA' else 'JPEG'
-                        image.save(thumbnail_path, thumbnail_format)
+                        with Image.open(item_path) as image:
+                            image.thumbnail((thumbnail_size, thumbnail_size))
+                            image_format = 'PNG' if image.mode == 'RGBA' else 'JPEG'
+                            image.save(thumbnail_path, image_format)
 
                     item_info['thumbnail'] = thumbnail_filename
                 except Exception as e:
-                    print(f"Failed to create thumbnail for {item_name}: {e}")
+                    logger.error(
+                        f"Failed to create thumbnail for {item_name}: {e}")
 
             # Generate thumbnails for videos
             elif not is_dir and file_ext in FILE_TYPES['videos']:
@@ -543,6 +548,7 @@ def file_list_api(request, drive_letter):
                         # Use ffmpeg to extract a frame at 00:00:01
                         command = [
                             'ffmpeg',
+                            '-y',
                             '-i', item_path,
                             '-ss', '00:00:01',
                             '-vframes', '1',
@@ -554,7 +560,7 @@ def file_list_api(request, drive_letter):
 
                     item_info['thumbnail'] = thumbnail_filename
                 except Exception as e:
-                    print(
+                    logger.error(
                         f"Failed to create video thumbnail for {item_name}: {e}")
 
             items.append(item_info)
@@ -583,11 +589,15 @@ def file_list_api(request, drive_letter):
         # Filter by date
         if date_from:
             date_from_dt = datetime.datetime.strptime(date_from, '%Y-%m-%d')
-            if item['modified'] < date_from_dt:
+            item_modified_dt = datetime.datetime.fromisoformat(
+                item['modified'])
+            if item_modified_dt < date_from_dt:
                 continue
         if date_to:
             date_to_dt = datetime.datetime.strptime(date_to, '%Y-%m-%d')
-            if item['modified'] > date_to_dt:
+            item_modified_dt = datetime.datetime.fromisoformat(
+                item['modified'])
+            if item_modified_dt > date_to_dt:
                 continue
 
         filtered_items.append(item)
@@ -597,8 +607,12 @@ def file_list_api(request, drive_letter):
 
     # Define sort key function
     def sort_key(item):
-        # Use empty string if sort_by key is None
-        return item.get(sort_by) or ''
+        key = item.get(sort_by)
+        if key is None:
+            if sort_by == 'size':
+                return 0
+            return ""
+        return key
 
     # Ensure directories are listed first
     filtered_items.sort(
@@ -606,12 +620,21 @@ def file_list_api(request, drive_letter):
         reverse=reverse
     )
 
+    # Pagination
+    total_items = len(filtered_items)
+    total_pages = (total_items + page_size - 1) // page_size
+    if page > total_pages and total_pages != 0:
+        page = total_pages
+    start_index = (page - 1) * page_size
+    end_index = start_index + page_size
+    paginated_items = filtered_items[start_index:end_index]
+
     response_data = {
-        'items': filtered_items,  # or 'filtered_items' after filtering
+        'items': paginated_items,
         'current_path': path,
         'base_dir': base_dir,
         'thumbnail_size': thumbnail_size,
-        'is_private': False,
+        'is_private': False,  # Update based on access control
         'q': request.GET.get('q', ''),
         'sort_by': sort_by,
         'sort_dir': sort_dir,
@@ -621,8 +644,14 @@ def file_list_api(request, drive_letter):
         'size_max': size_max,
         'date_from': date_from,
         'date_to': date_to,
+        'pagination': {
+            'current_page': page,
+            'page_size': page_size,
+            'total_pages': total_pages,
+            'total_items': total_items,
+        }
     }
-    return JsonResponse(response_data)  # json for react api
+    return JsonResponse(response_data)
 
 
 def get_latest_mtime(directory):
@@ -637,26 +666,50 @@ def get_latest_mtime(directory):
 
 
 def download_zip(request):
+    logger.debug("download_zip view called.")
     relative_path = request.GET.get('path', '')
-    base_dir = settings.BASE_DIR
+    base_dir = request.GET.get('base_dir')
+    logger.debug(
+        f"Received base_dir: {base_dir}, relative_path: {relative_path}")
+
+    # Adjust base_dir for Windows drive letters
+    if os.name == 'nt' and len(base_dir) == 1 and base_dir.isalpha():
+        base_dir = base_dir + ':\\'
+    logger.debug(f"Adjusted base_dir: {base_dir}")
+
     full_path = os.path.normpath(os.path.join(base_dir, relative_path))
+    logger.debug(f"Constructed full_path: {full_path}")
 
     # Prevent directory traversal attacks
-    if not full_path.startswith(str(base_dir)):
+    if not full_path.startswith(os.path.normpath(base_dir)):
+        logger.warning("Directory traversal attempt detected.")
         raise Http404("Invalid path")
 
-    if not os.path.exists(full_path) or not os.path.isdir(full_path):
+    if not os.path.exists(full_path):
+        logger.error(f"Path does not exist: {full_path}")
+        raise Http404("Directory does not exist")
+
+    if not os.path.isdir(full_path):
+        logger.error(f"Path is not a directory: {full_path}")
         raise Http404("Directory does not exist")
 
     dir_name = os.path.basename(os.path.normpath(full_path))
     zip_filename = f"{dir_name}.zip"
-    zip_dir = os.path.join(base_dir, 'temparchive')
+    zip_dir = os.path.join(settings.BASE_DIR, 'temparchive')
     os.makedirs(zip_dir, exist_ok=True)
     zip_path = os.path.join(zip_dir, zip_filename)
 
     # Determine whether to create or reuse the zip file
     regenerate_zip = False
-
+    # Use 7z to create the zip file
+    try:
+        subprocess.check_call(
+            ['7z', 'a', '-tzip', '-mx=0', zip_path, full_path]
+        )
+        logging.info(f"Zip file created at {zip_path}")
+    except subprocess.CalledProcessError as e:
+        logging.error(f"Error creating zip file: {e}")
+        return HttpResponse("Error creating zip file.", status=500)
     if os.path.exists(zip_path):
         # Get the modification time of the zip file
         zip_mtime = os.path.getmtime(zip_path)
@@ -667,7 +720,7 @@ def download_zip(request):
         if dir_mtime > zip_mtime:
             regenerate_zip = True
     else:
-        regenerate_zip = True
+        regenerate_zip = False
 
     if regenerate_zip:
         # Remove the old zip file if it exists
@@ -688,6 +741,98 @@ def download_zip(request):
     return HttpResponseRedirect(zip_url)
 
 
+# @login_required
+
+
+def gpu_available():
+    # Implement logic to check if GPU encoding is available
+    # For example, check if 'hevc_nvenc' is in FFmpeg encoders
+    result = subprocess.run(
+        ['ffmpeg', '-encoders'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    return 'hevc_nvenc' in result.stdout
+
+
+# @require_GET
+@require_GET
+def stream_hls(request, drive_letter, path):
+    logger.debug(f"Entering Stream HLS {drive_letter}, {path}")
+    base_dir = drive_letter + ':\\' if os.name == 'nt' else '/' + drive_letter
+    relative_path = unquote(path)
+    full_path = os.path.normpath(os.path.join(base_dir, relative_path))
+
+    # Security checks
+    if not os.path.isfile(full_path):
+        return JsonResponse({'error': 'File does not exist'}, status=404)
+
+    if not full_path.startswith(os.path.abspath(base_dir)):
+        return JsonResponse({'error': 'Invalid path'}, status=400)
+
+    # Define HLS output directory
+    hls_output_base_dir = 'D:/temp_hls'
+    video_identifier = os.path.basename(full_path)
+    hls_output_dir = os.path.join(hls_output_base_dir, video_identifier)
+    os.makedirs(hls_output_dir, exist_ok=True)
+
+    hls_playlist = os.path.normpath(os.path.join(hls_output_dir, 'index.m3u8'))
+    logger.debug(f"Generating HLS chunks at {hls_output_dir}, {hls_playlist}")
+
+    ffmpeg_command = [
+        'ffmpeg',
+        '-y',
+        '-i', full_path,
+        '-c:v', 'h264_nvenc' if gpu_available() else 'libx264',
+        '-preset', 'fast',
+        '-profile:v', 'high',
+        '-level:v', '4.1',
+        '-pix_fmt', 'yuv420p',  # Ensure 8-bit color depth
+        '-c:a', 'aac',
+        '-b:a', '128k',
+        '-ac', '2',  # Downmix to stereo if necessary
+        '-hls_time', '4',
+        '-hls_list_size', '0',
+        '-hls_flags', 'delete_segments',  # Removed 'append_list'
+        '-hls_playlist_type', 'vod',     # Changed to 'vod'
+        '-f', 'hls',
+        hls_playlist
+    ]
+
+    def run_ffmpeg():
+        process = subprocess.Popen(
+            ffmpeg_command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+        )
+        stderr, _ = process.communicate()
+        if process.returncode != 0:
+            error_message = stderr.decode('utf-8')
+            logger.error(f'FFmpeg error: {error_message}')
+
+    thread = Thread(target=run_ffmpeg)
+    thread.daemon = True
+    thread.start()
+
+    # Wait for the playlist and initial segments to be created
+    max_wait = 30  # seconds
+    waited = 0
+    while (not os.path.exists(hls_playlist) or len(glob.glob(os.path.join(hls_output_dir, '*.ts'))) < 2) and waited < max_wait:
+        time.sleep(30)
+        waited += 1
+
+    if not os.path.exists(hls_playlist):
+        logger.error('Error generating HLS playlist within timeout')
+        return JsonResponse({'error': 'Error generating HLS playlist'}, status=500)
+
+    # Return the playlist URL to the client
+    playlist_url = f'/hls/{video_identifier}/index.m3u8'
+    response_data = {
+        'playlist_url': playlist_url,
+        'video_filename': video_identifier,
+    }
+    logger.debug(f"Returning playlist URL: {playlist_url}")
+    return JsonResponse(response_data)
+
+
 def download_file(request, path, filename):
     file_path = os.path.join(settings.BASE_DIR, path, filename)
     if not os.path.exists(file_path):
@@ -699,17 +844,6 @@ def download_file(request, path, filename):
     # Indicate that the server accepts byte-range requests
     response['Accept-Ranges'] = 'bytes'
     return response
-
-
-def video_stream_page(request, path, filename):
-    file_path = os.path.join(BASE_DIR, path, filename)
-    if not os.path.exists(file_path):
-        raise Http404("File does not exist")
-    context = {
-        'video_path': file_path,
-        'video_filename': filename,
-    }
-    return render(request, 'video_stream.html', context)
 
 
 def homepage(request):
