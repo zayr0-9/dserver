@@ -86,7 +86,9 @@ def file_upload(request, base_dir, relative_path):
     if '..' in base_dir or '..' in relative_path:
         logger.warning("Directory traversal attempt detected.")
         return JsonResponse({'error': 'Invalid directory path.'}, status=400)
-
+    if not relative_path:
+        logger.warning("Didnt recieve relative path.")
+        return JsonResponse({'error': 'Invalid directory path.'}, status=400)
     # Handle empty relative_path
     if relative_path in ('', '.'):
         relative_path = 'Uploads'  # Default upload directory, adjust as needed
@@ -306,8 +308,8 @@ def get_file_content(request):
     if not base_dir or not relative_path:
         return JsonResponse({'error': 'Invalid parameters'}, status=400)
 
-    # Adjust base_dir
-    if len(base_dir) == 1 and base_dir.isalpha():
+    # Adjust base_dir as needed
+    if os.name == 'nt' and len(base_dir) == 1 and base_dir.isalpha():
         base_dir = base_dir + ':\\'
 
     full_path = os.path.normpath(os.path.join(base_dir, relative_path))
@@ -319,27 +321,8 @@ def get_file_content(request):
     # Prevent directory traversal
     if not full_path.startswith(os.path.abspath(base_dir)):
         return JsonResponse({'error': 'Invalid path'}, status=400)
-    current_user = request.user
+
     try:
-        with transaction.atomic():
-            # Clean up expired locks
-            expiry_time = timezone.now() - timezone.timedelta(seconds=LOCK_TIMEOUT)
-            FileLock.objects.filter(timestamp__lt=expiry_time).delete()
-
-            # Try to obtain the lock
-            file_lock, created = FileLock.objects.get_or_create(
-                file_path=full_path,
-                defaults={'user': current_user, 'timestamp': timezone.now()}
-            )
-
-            if not created and file_lock.user != current_user:
-                return JsonResponse({'error': 'File is currently being edited by another user.'}, status=409)
-            else:
-                # Update the lock timestamp and user
-                file_lock.user = current_user
-                file_lock.timestamp = timezone.now()
-                file_lock.save()
-
         with open(full_path, 'r', encoding='utf-8') as f:
             content = f.read()
         file_name = os.path.basename(full_path)
@@ -370,7 +353,7 @@ def save_file_content(request):
         return JsonResponse({'error': 'Invalid parameters'}, status=400)
 
     # Adjust base_dir as needed
-    if len(base_dir) == 1 and base_dir.isalpha():
+    if os.name == 'nt' and len(base_dir) == 1 and base_dir.isalpha():
         base_dir = base_dir + ':\\'
 
     full_path = os.path.normpath(os.path.join(base_dir, relative_path))
@@ -383,30 +366,13 @@ def save_file_content(request):
     if not os.access(full_path, os.W_OK):
         return JsonResponse({'error': 'No write permission for this file'}, status=403)
 
-    current_user = request.user
-
     try:
-        with transaction.atomic():
-            # Verify that the current user holds the lock
-            try:
-                file_lock = FileLock.objects.get(file_path=full_path)
-                if file_lock.user != current_user:
-                    return JsonResponse({'error': 'You do not have permission to save this file.'}, status=403)
-            except FileLock.DoesNotExist:
-                return JsonResponse({'error': 'No lock found for this file.'}, status=403)
-
-            # Save the file
-            with open(full_path, 'w', encoding='utf-8') as f:
-                f.write(content)
-
-            # Release the lock
-            file_lock.delete()
-
+        with open(full_path, 'w', encoding='utf-8') as f:
+            f.write(content)
         return JsonResponse({'success': True})
     except Exception as e:
         logger.error(f"Error writing to file at {full_path}: {e}")
         return JsonResponse({'error': 'Error saving file'}, status=500)
-
 # @require_GET
 
 
