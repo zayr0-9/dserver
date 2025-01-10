@@ -8,6 +8,8 @@ Currently can access the whole file system from any device with browser
 6. can upload files (500 max limit at once in browser)
 7. Launchserver.exe
 8. Populate drives dynamically in nginx conf
+9. Implemented monaco code editor
+10. Automate setup
 
 To Do:
 
@@ -18,8 +20,6 @@ To Do:
 5. Implement RTP streaming
 6. Implement simple music and video file editing (cropping, concatenating etc)
 7. Implement remote desktop control
-8. Implement code-server
-9. Automate
 
 [To run open terminal in dserver -]
 
@@ -27,8 +27,10 @@ To Do:
 2. cd filetransfer
 3. waitress-serve --port=8000 filetransfer.wsgi:application
 
-[clone this library using ]
+[nginx rtmp]
 
-1. git clone https://github.com/illuspas/nginx-rtmp-win32
+1. nginx rtmp source - https://github.com/illuspas/nginx-rtmp-win32
 
 [Run nginx.exe]
+
+Attention! - nginx-rtmp-win32-1.2.1 folder will not contain logs folder and fail to run. Create an empty folder named "logs" to fix it. Self nginx installation from source doesn't have this issue.

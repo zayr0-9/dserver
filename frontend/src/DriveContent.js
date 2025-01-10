@@ -1,10 +1,26 @@
 // DriveContents.js
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate, useLocation, Link } from "react-router-dom";
 import queryString from "query-string";
 import styles from "./DriveContent.module.css";
+import SearchBar from "./FileSearch"; // Import your SearchBar here
+
 import axios from "axios";
+
+function getParentPath(path) {
+  // Convert backslashes to forward slashes
+  let normalized = path.replace(/\\/g, "/");
+  // Remove trailing slash
+  normalized = normalized.replace(/\/+$/, "");
+  // Split
+  const parts = normalized.split("/");
+  if (parts.length > 1) {
+    parts.pop();
+    return parts.join("/");
+  }
+  return ""; // means root
+}
 
 const DriveContents = () => {
   const { driveLetter, "*": pathParam } = useParams();
@@ -27,6 +43,32 @@ const DriveContents = () => {
   const [pin, setPin] = useState("");
   const [pinError, setPinError] = useState("");
   const [errorMessage, setErrorMessage] = useState(""); // For displaying fetch errors
+  const [isDropdownVisible, setIsDropdownVisible] = useState(false);
+  const dropdownRef = useRef(null);
+  const isRoot = currentPath === "";
+  const toggleDropdown = () => {
+    setIsDropdownVisible(!isDropdownVisible);
+  };
+  const handleGoUp = () => {
+    const parentPath = getParentPath(currentPath);
+    navigate(`/drive/${driveLetter}/${encodeURIComponent(parentPath)}`);
+  };
+  // Close the dropdown when clicking outside of it
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsDropdownVisible(false); // Hide dropdown when clicking outside
+      }
+    };
+
+    // Add event listener to document
+    document.addEventListener("mousedown", handleClickOutside);
+
+    // Cleanup the event listener when the component is unmounted
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   // Sorting and filtering state
   const [sorting, setSorting] = useState({
@@ -352,145 +394,147 @@ const DriveContents = () => {
     <div className={styles.driveContents}>
       {/* Top Bar */}
       <div className={styles.topBar}>
-        <h1 className={styles.h1}>
-          File Transfer - {driveLetter}:\{currentPath}
-        </h1>
-        <button className={styles.option} onClick={() => navigate("/drive/")}>
-          Home
-        </button>
-        {/* "Upload More Files" Link */}
-        <div className={styles.uploadLink}>
-          <Link
-            to={`/upload?base_dir=${encodeURIComponent(
-              baseDir
-            )}&path=${encodeURIComponent(currentPath)}`}
-            className={styles.uploadLink}
+        <div className={styles.topRow}>
+          <h1 className={styles.h1}>
+            File Transfer - {driveLetter}:\{currentPath}
+          </h1>
+          <button className={styles.option} onClick={() => navigate("/drive/")}>
+            Home
+          </button>
+          <button
+            className={styles.option}
+            onClick={handleGoUp}
+            disabled={isRoot}
           >
-            Upload More Files
-          </Link>
+            Go Up
+          </button>
+          {/* "Upload More Files" Link */}
+          <div className={styles.uploadLink}>
+            <Link
+              to={`/upload?base_dir=${encodeURIComponent(
+                baseDir
+              )}&path=${encodeURIComponent(currentPath)}`}
+              className={styles.uploadLink}
+            >
+              Upload More Files
+            </Link>
+          </div>
+          {/* Advanced Filters Dropdown */}
+          <div className={styles.advancedFilters}>
+            <button
+              className={styles.advancedFiltersButton}
+              onClick={toggleDropdown}
+            >
+              Advanced Filters
+            </button>
+
+            {isDropdownVisible && (
+              <div className={styles.dropdown} ref={dropdownRef}>
+                {/* Sorting Form */}
+                <form onSubmit={handleSortingSubmit} id="sortingForm">
+                  <label htmlFor="sort_by">Sort by:</label>
+                  <select
+                    name="sort_by"
+                    id="sort_by"
+                    value={sorting.sort_by}
+                    onChange={handleSortingChange}
+                  >
+                    <option value="name">Name</option>
+                    <option value="size">Size</option>
+                    <option value="modified">Last Modified</option>
+                    <option value="created">Creation Date</option>
+                  </select>
+
+                  <label htmlFor="sort_dir">Order:</label>
+                  <select
+                    name="sort_dir"
+                    id="sort_dir"
+                    value={sorting.sort_dir}
+                    onChange={handleSortingChange}
+                  >
+                    <option value="asc">Ascending</option>
+                    <option value="desc">Descending</option>
+                  </select>
+
+                  <button type="submit">Apply</button>
+                </form>
+
+                {/* Filtering Form */}
+                <form onSubmit={handleFilteringSubmit} id="filteringForm">
+                  <label htmlFor="filter_type">Type:</label>
+                  <select
+                    name="filter_type"
+                    id="filter_type"
+                    value={filtering.filter_type}
+                    onChange={handleFilteringChange}
+                  >
+                    <option value="all">All</option>
+                    <option value="dir">Directories</option>
+                    <option value="file">Files</option>
+                  </select>
+
+                  <label htmlFor="file_type">File Type:</label>
+                  <select
+                    name="file_type"
+                    id="file_type"
+                    value={filtering.file_type}
+                    onChange={handleFilteringChange}
+                  >
+                    <option value="all">All</option>
+                    <option value="images">Images</option>
+                    <option value="videos">Videos</option>
+                    <option value="documents">Documents</option>
+                    <option value="audio">Audio</option>
+                    <option value="archives">Archives</option>
+                  </select>
+
+                  <label htmlFor="size_min">Size Min (bytes):</label>
+                  <input
+                    type="number"
+                    name="size_min"
+                    id="size_min"
+                    value={filtering.size_min}
+                    onChange={handleFilteringChange}
+                    min="0"
+                  />
+
+                  <label htmlFor="size_max">Size Max (bytes):</label>
+                  <input
+                    type="number"
+                    name="size_max"
+                    id="size_max"
+                    value={filtering.size_max}
+                    onChange={handleFilteringChange}
+                    min="0"
+                  />
+
+                  <label htmlFor="date_from">Date From:</label>
+                  <input
+                    type="date"
+                    name="date_from"
+                    id="date_from"
+                    value={filtering.date_from}
+                    onChange={handleFilteringChange}
+                  />
+
+                  <label htmlFor="date_to">Date To:</label>
+                  <input
+                    type="date"
+                    name="date_to"
+                    id="date_to"
+                    value={filtering.date_to}
+                    onChange={handleFilteringChange}
+                  />
+
+                  <button type="submit">Apply Filters</button>
+                </form>
+              </div>
+            )}
+          </div>
         </div>
-
-        {/* Forms Section */}
-        <div className={styles.formSection}>
-          {/* Sorting Form */}
-          <form onSubmit={handleSortingSubmit} id="sortingForm">
-            <label htmlFor="sort_by">Sort by:</label>
-            <select
-              name="sort_by"
-              id="sort_by"
-              value={sorting.sort_by}
-              onChange={handleSortingChange}
-            >
-              <option value="name">Name</option>
-              <option value="size">Size</option>
-              <option value="modified">Last Modified</option>
-              <option value="created">Creation Date</option>
-            </select>
-
-            <label htmlFor="sort_dir">Order:</label>
-            <select
-              name="sort_dir"
-              id="sort_dir"
-              value={sorting.sort_dir}
-              onChange={handleSortingChange}
-            >
-              <option value="asc">Ascending</option>
-              <option value="desc">Descending</option>
-            </select>
-
-            <button type="submit">Apply</button>
-          </form>
-
-          {/* Filtering Form */}
-          <form onSubmit={handleFilteringSubmit} id="filteringForm">
-            <label htmlFor="filter_type">Type:</label>
-            <select
-              name="filter_type"
-              id="filter_type"
-              value={filtering.filter_type}
-              onChange={handleFilteringChange}
-            >
-              <option value="all">All</option>
-              <option value="dir">Directories</option>
-              <option value="file">Files</option>
-            </select>
-
-            <label htmlFor="file_type">File Type:</label>
-            <select
-              name="file_type"
-              id="file_type"
-              value={filtering.file_type}
-              onChange={handleFilteringChange}
-            >
-              <option value="all">All</option>
-              <option value="images">Images</option>
-              <option value="videos">Videos</option>
-              <option value="documents">Documents</option>
-              <option value="audio">Audio</option>
-              <option value="archives">Archives</option>
-            </select>
-
-            <label htmlFor="size_min">Size Min (bytes):</label>
-            <input
-              type="number"
-              name="size_min"
-              id="size_min"
-              value={filtering.size_min}
-              onChange={handleFilteringChange}
-              min="0"
-            />
-
-            <label htmlFor="size_max">Size Max (bytes):</label>
-            <input
-              type="number"
-              name="size_max"
-              id="size_max"
-              value={filtering.size_max}
-              onChange={handleFilteringChange}
-              min="0"
-            />
-
-            <label htmlFor="date_from">Date From:</label>
-            <input
-              type="date"
-              name="date_from"
-              id="date_from"
-              value={filtering.date_from}
-              onChange={handleFilteringChange}
-            />
-
-            <label htmlFor="date_to">Date To:</label>
-            <input
-              type="date"
-              name="date_to"
-              id="date_to"
-              value={filtering.date_to}
-              onChange={handleFilteringChange}
-            />
-
-            <button type="submit">Apply Filters</button>
-          </form>
+        <div className={styles.searchBar}>
+          <SearchBar />
         </div>
-
-        {/* Thumbnail Size Form */}
-        {/* Optional: Uncomment if needed
-        <form onSubmit={handleThumbnailSizeSubmit}>
-          <label htmlFor="thumbnail_size">Thumbnail Size:</label>
-          <select
-            name="thumbnail_size"
-            id="thumbnail_size"
-            value={thumbnailSize}
-            onChange={handleThumbnailSizeChange}
-          >
-            <option value="100">100x100</option>
-            <option value="300">300x300</option>
-            <option value="500">500x500</option>
-            <option value="1000">1000x1000</option>
-            <option value="2000">2000x2000</option>
-          </select>
-          <button type="submit">Apply</button>
-        </form>
-        */}
       </div>
 
       {/* Display Error Message */}

@@ -20,5 +20,9 @@ urlpatterns = [
     path('files/save/', views.save_file_content, name='save_file_content'),
     path('stream/<str:drive_letter>/<path:path>/',
          views.stream_hls, name='stream_hls'),
+    path('search/', views.search_files, name='search_files'),
+     path('admin/console/', views.admin_console_api, name='admin_console_api'),
+     path("update-drive-letter/", views.update_drive_letter, name="update_drive_letter"),
+
 
 ]

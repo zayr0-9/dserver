@@ -24,18 +24,38 @@
   
   /* Top Bar */
   .topBar {
-    display: flex;
+    display: flexbox;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 20px;
     /* Optional: make the top bar sticky */
     position: sticky;
     top: 0;
-    background-color: #1d1d1d;
+    background-color: #1a1a1a;
     z-index: 100;
     padding: 10px 0;
   }
   
+.topBar .topRow {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%; /* Ensure it spans the full width */
+}
+
+.topBar .searchBar {
+    /* margin-top: 10px; Add spacing between the search bar and top row */
+    text-align: left; /* Align the search bar to the right */
+    background-color: #1a1a1a;
+    /* border: 1px solid #555; */
+    /* padding: 15px; */
+    border-radius: 5px;
+    position: absolute;
+    /* top: 50px;
+    right: 10px; */
+    z-index: 1000;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+}
   .topBar h1 {
     font-size: 3em;
   }
@@ -382,4 +402,106 @@
   background-color: #e0e0e0;
   color: #a0a0a0;
   cursor: not-allowed;
+}
+
+.advancedFiltersButton {
+  background-color: #444;
+  color: white;
+  border: none;
+  padding: 10px 15px;
+  cursor: pointer;
+  font-size: 14px;
+  border-radius: 5px;
+}
+
+.advancedFiltersButton:hover {
+  background-color: #666;
+}
+
+.dropdown {
+  background-color: #333;
+  border: 1px solid #555;
+  padding: 15px;
+  border-radius: 5px;
+  position: absolute;
+  top: 50px;
+  right: 10px;
+  z-index: 1000;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+}
+
+.dropdown form {
+  margin-bottom: 10px;
+}
+
+.dropdown label {
+  display: block;
+  margin-bottom: 5px;
+  color: #ccc;
+}
+
+.dropdown input,
+.dropdown select {
+  width: 100%;
+  margin-bottom: 10px;
+  padding: 5px;
+  border: 1px solid #444;
+  background-color: #222;
+  color: white;
+  border-radius: 5px;
+}
+
+.dropdown button {
+  background-color: #28a745;
+  color: white;
+  border: none;
+  padding: 5px 10px;
+  cursor: pointer;
+  border-radius: 5px;
+}
+
+.dropdown button:hover {
+  background-color: #218838;
+}
+
+.searchDropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background-color: #1e1e1e;
+  border: 1px solid #444;
+  width: 100%;
+  max-height: 300px;
+  overflow-y: auto;
+  z-index: 10;
+  border-radius: 5px;
+  box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.5);
+}
+
+.closeSearchButton {
+  display: block;
+  width: 100%;
+  background: #333;
+  color: white;
+  padding: 10px;
+  text-align: center;
+  cursor: pointer;
+  border: none;
+}
+
+.searchResultsList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.searchResultItem {
+  padding: 10px;
+  color: white;
+  cursor: pointer;
+  border-bottom: 1px solid #444;
+}
+
+.searchResultItem:hover {
+  background-color: #444;
 }

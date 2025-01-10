@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import "./ServerHomePage.css";
 import { useNavigate } from "react-router-dom";
 import { Link } from "react-router-dom";
+import AdminConsole from "./AdminConsole";
 
 const ServerHomePage = () => {
   const navigate = useNavigate();
@@ -21,8 +22,10 @@ const ServerHomePage = () => {
           <Link to="/theatre-mode">Theatre Mode</Link>
         </button>
         <button className="option">
-          <Link to="/admin">Admin Console</Link>
+          <Link to="/admin-console">Admin Console</Link>
+          
         </button>
+        
       </div>
     </div>
   );

@@ -374,13 +374,17 @@
       <button class="option" onclick="window.location.href='/drive/'">
         Home
       </button>
+      
+
     </div>
 
     <!-- Container -->
     <div class="container">
         <!-- Forms Section -->
         <div class="form-section">
+          <button id="advancedFiltersBtn" onclick="toggleAdvancedFilters()">Advanced Filters</button>
             <!-- Sorting Form -->
+            <div id="sortingContainer" class="sorting-container" style="display: none;">
             <form method="GET" action="" id="sortingForm">
                 <label for="sort_by">Sort by:</label>
                 <select name="sort_by" id="sort_by" onchange="document.getElementById('sortingForm').submit()">
@@ -403,6 +407,7 @@
                     {% endif %}
                 {% endfor %}
             </form>
+
 
             <!-- Filtering Form -->
             <form method="GET" action="" id="filteringForm">
@@ -443,6 +448,7 @@
                     {% endif %}
                 {% endfor %}
             </form>
+            </div>
 
             <!-- Thumbnail Size Form -->
             <form method="GET" action="">
@@ -588,6 +594,17 @@
     </div>
 
     <!-- Scripts -->
+    <script>
+      function toggleAdvancedFilters() {
+        var sortingContainer = document.getElementById('sortingContainer');
+        // Toggle the display between block and none
+        if (sortingContainer.style.display === 'none') {
+          sortingContainer.style.display = 'block';
+        } else {
+          sortingContainer.style.display = 'none';
+        }
+      }
+    </script>
     <script>
       // Prepare an array of media items
       var mediaItems = [];

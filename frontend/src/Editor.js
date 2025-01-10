@@ -12,7 +12,7 @@ const FileEditor = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [editorOptions, setEditorOptions] = useState({
-    theme: "vs-light",
+    theme: "vs-dark",
     fontSize: 14,
   });
 

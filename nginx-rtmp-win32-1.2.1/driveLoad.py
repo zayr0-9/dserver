@@ -21,64 +21,316 @@ def get_drives():
     return drives
 
 
+# def generate_nginx_config(drives, output_file, workDrive):
+        
+#     with open(output_file, 'w') as f:
+#         f.write(
+# f"""worker_processes  1;
+# error_log  logs/error.log debug;
+# events {{
+#     worker_connections  1024;
+# }}
+
+# rtmp {{
+#     server {{
+#         listen 1935;
+
+#         application live {{
+#             live on;
+#             hls on;  # Enable HLS for the live stream
+#             hls_path D:/temphls;  # Ensure this path exists
+#             hls_fragment 4s;  # Set the fragment length
+#             hls_playlist_length 6s;  # Set the playlist length
+#             record off;  # Disable recording (optional)
+#         }}
+        
+#         application hls {{
+#             live on;
+#             hls on;  
+#             hls_path temp/hls;  
+#             hls_fragment 8s;  
+#         }}
+#     }}
+# }}
+
+# http {{
+#     include       mime.types;
+#     default_type  application/octet-stream;
+#     client_body_timeout 300;
+#     client_header_timeout 300;
+#     sendfile        on;
+#     tcp_nopush      on;
+#     tcp_nodelay     on;
+#     server_tokens   off;
+#     keepalive_timeout  65;
+#     error_log logs/error.log debug;
+#     types_hash_max_size 2048;
+
+
+# #change to your own servers IP
+#     upstream django_server {{
+#         server 192.168.0.84:8000;  # Waitress will run on port 8000
+#     }}
+
+#     server {{
+#         listen       80;
+#         # listen 443 ssl http2;
+#         server_name  localhost;
+
+
+#         # Serve static files
+#         location /static/ {{
+#             # alias C:/Users/rajka/Desktop/projects/dserver/filetransfer/static/;
+#             alias C:/Users/rajka/Desktop/projects/dserver/frontend/build/static/;
+#         }}
+
+#         location /django_static/ {{
+#         alias C:/Users/rajka/Desktop/projects/dserver/filetransfer/static/;
+#         }}
+
+#         location /api/ {{
+#             proxy_pass http://django_server;
+#             proxy_set_header Host $host;
+#             proxy_set_header X-Real-IP $remote_addr;
+#             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+#             proxy_set_header X-Forwarded-Proto $scheme;
+
+#             client_max_body_size 1000M;  # Increase maximum allowed request size
+#             proxy_read_timeout 1200s;    # Set proxy read timeout to 1200 seconds
+#             proxy_send_timeout 1200s;    # Set proxy send timeout to 1200 seconds
+#             proxy_buffering off;         # Disable buffering for better streaming performance
+#         }}
+
+#         # Serve media files
+#         location /media/ {{
+#             alias C:/Users/rajka/Desktop/projects/dserver/filetransfer/static/media/;
+#         }}
+#         # Serve downloads directly
+#         # Include the dynamically generated configuration
+    
+#         location / {{
+#         root C:/Users/rajka/Desktop/projects/dserver/frontend/build/;
+#         try_files $uri /index.html;
+#         }}
+#         # Proxy WebSocket connections to Node.js (for real-time updates)
+#         location /socket.io/ {{
+#         proxy_pass http://127.0.0.1:3000;  # Node.js runs on port 3000
+#         proxy_http_version 1.1;
+#         proxy_set_header Upgrade $http_upgrade;
+#         proxy_set_header Connection "upgrade";
+#         }}
+#     }}
+# }}
+# """)
+#         # Generate configuration for each drive
+#         for drive in drives:
+#             f.write(f"""
+#     location /stream/{drive}/ {{
+#         alias {drive}:/;
+#         add_header Accept-Ranges bytes;
+#         add_header Cache-Control "public, max-age=3600";
+#     }}
+# """)
+#         for drive in drives:
+#             f.write(f"""
+#     location /downloads/{drive}/ {{
+#         alias {drive}:/;
+#         add_header Content-Disposition 'attachment' always;
+#         add_header Accept-Ranges bytes;
+#         add_header Cache-Control "public, max-age=3600";
+
+#         if (-d $request_filename) {{
+#             return 403;
+#         }}
+#     }}
+# """)
+
+#         # Additional configuration sections using workDrive
+#         f.write(f"""
+#     location /temparchive/ {{
+#         # internal;
+#         alias {workDrive}:/temparchive/;
+#         autoindex on;  # Temporarily enable for testing
+#         try_files $uri $uri/ =404;
+#         add_header Accept-Ranges bytes;
+#         add_header Content-Disposition "attachment; filename=$request_filename";
+#         add_header Cache-Control "no-cache";
+#         # Optionally set buffer size
+#         proxy_buffering off;
+#     }}
+
+#     # Serve thumbnails directly
+#     location /transfer/thumbnails/ {{
+#         alias {workDrive}:/temp_thumbnails/;  # Adjust the path to your thumbnails directory
+#     }}
+
+#     location /hls {{
+#         types {{
+#             application/vnd.apple.mpegurl m3u8;
+#             video/mp2t ts;
+#         }}
+#         alias {workDrive}:/temphls;  # HLS output directory
+#         add_header Cache-Control no-cache;
+#     }}
+
+#     location /thumbnails/ {{
+#         alias {workDrive}:/serverthumb/;  # Update this with the actual path to your thumbnails directory
+#         autoindex on;  # Optional: allow directory listing if needed
+#     }}
+# """)
+#     print(f"Nginx configuration generated at {output_file}")
+
 def generate_nginx_config(drives, output_file, workDrive):
     with open(output_file, 'w') as f:
-        # Generate configuration for each drive
-        for drive in drives:
-            f.write(f"""
-    location /stream/{drive}/ {{
-        alias {drive}:/;
-        add_header Accept-Ranges bytes;
-        add_header Cache-Control "public, max-age=3600";
-    }}
-""")
-        for drive in drives:
-            f.write(f"""
-    location /downloads/{drive}/ {{
-        alias {drive}:/;
-        add_header Content-Disposition 'attachment' always;
-        add_header Accept-Ranges bytes;
-        add_header Cache-Control "public, max-age=3600";
+        # Write the initial part of the configuration, including the `http` block header
+        f.write(
+f"""worker_processes  1;
+error_log  logs/error.log debug;
+events {{
+    worker_connections  1024;
+}}
 
-        if (-d $request_filename) {{
-            return 403;
+rtmp {{
+    server {{
+        listen 1935;
+
+        application live {{
+            live on;
+            hls on;  # Enable HLS for the live stream
+            hls_path D:/temphls;  # Ensure this path exists
+            hls_fragment 4s;  # Set the fragment length
+            hls_playlist_length 6s;  # Set the playlist length
+            record off;  # Disable recording (optional)
+        }}
+        
+        application hls {{
+            live on;
+            hls on;  
+            hls_path temp/hls;  
+            hls_fragment 8s;  
         }}
     }}
+}}
+
+http {{
+    include       mime.types;
+    default_type  application/octet-stream;
+    client_body_timeout 300;
+    client_header_timeout 300;
+    sendfile        on;
+    tcp_nopush      on;
+    tcp_nodelay     on;
+    server_tokens   off;
+    keepalive_timeout  65;
+    error_log logs/error.log debug;
+    types_hash_max_size 2048;
+
+    #change to your own servers IP
+    upstream django_server {{
+        server 192.168.0.84:8000;  # Waitress will run on port 8000
+    }}
+
+    server {{
+        listen       80;
+        server_name  localhost;
+
+        # Serve static files
+        location /static/ {{
+            alias C:/Users/rajka/Desktop/projects/dserver/frontend/build/static/;
+        }}
+
+        location /django_static/ {{
+            alias C:/Users/rajka/Desktop/projects/dserver/filetransfer/static/;
+        }}
+
+        location /api/ {{
+            proxy_pass http://django_server;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+
+            client_max_body_size 1000M;  # Increase maximum allowed request size
+            proxy_read_timeout 1200s;    # Set proxy read timeout to 1200 seconds
+            proxy_send_timeout 1200s;    # Set proxy send timeout to 1200 seconds
+            proxy_buffering off;         # Disable buffering for better streaming performance
+        }}
+
+        # Serve media files
+        location /media/ {{
+            alias C:/Users/rajka/Desktop/projects/dserver/filetransfer/static/media/;
+        }}
+
+        # Serve downloads directly
+        location / {{
+            root C:/Users/rajka/Desktop/projects/dserver/frontend/build/;
+            try_files $uri /index.html;
+        }}
+
+        # Proxy WebSocket connections to Node.js (for real-time updates)
+        location /socket.io/ {{
+            proxy_pass http://127.0.0.1:3000;  # Node.js runs on port 3000
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+        }}
+""")
+
+        # Dynamically add location blocks for each drive
+        for drive in drives:
+            f.write(f"""
+        location /stream/{drive}/ {{
+            alias {drive}:/;
+            add_header Accept-Ranges bytes;
+            add_header Cache-Control "public, max-age=3600";
+        }}
+""")
+            f.write(f"""
+        location /downloads/{drive}/ {{
+            alias {drive}:/;
+            add_header Content-Disposition 'attachment' always;
+            add_header Accept-Ranges bytes;
+            add_header Cache-Control "public, max-age=3600";
+
+            if (-d $request_filename) {{
+                return 403;
+            }}
+        }}
 """)
 
         # Additional configuration sections using workDrive
         f.write(f"""
-    location /temparchive/ {{
-        # internal;
-        alias {workDrive}:/temparchive/;
-        autoindex on;  # Temporarily enable for testing
-        try_files $uri $uri/ =404;
-        add_header Accept-Ranges bytes;
-        add_header Content-Disposition "attachment; filename=$request_filename";
-        add_header Cache-Control "no-cache";
-        # Optionally set buffer size
-        proxy_buffering off;
-    }}
-
-    # Serve thumbnails directly
-    location /transfer/thumbnails/ {{
-        alias {workDrive}:/temp_thumbnails/;  # Adjust the path to your thumbnails directory
-    }}
-
-    location /hls {{
-        types {{
-            application/vnd.apple.mpegurl m3u8;
-            video/mp2t ts;
+        location /temparchive/ {{
+            alias {workDrive}:/temparchive/;
+            autoindex on;  # Temporarily enable for testing
+            try_files $uri $uri/ =404;
+            add_header Accept-Ranges bytes;
+            add_header Content-Disposition "attachment; filename=$request_filename";
+            add_header Cache-Control "no-cache";
+            proxy_buffering off;
         }}
-        alias {workDrive}:/temphls;  # HLS output directory
-        add_header Cache-Control no-cache;
-    }}
 
-    location /thumbnails/ {{
-        alias {workDrive}:/serverthumb/;  # Update this with the actual path to your thumbnails directory
-        autoindex on;  # Optional: allow directory listing if needed
-    }}
+        location /transfer/thumbnails/ {{
+            alias {workDrive}:/temp_thumbnails/;
+        }}
+
+        location /hls {{
+            types {{
+                application/vnd.apple.mpegurl m3u8;
+                video/mp2t ts;
+            }}
+            alias {workDrive}:/temphls;
+            add_header Cache-Control no-cache;
+        }}
+
+        location /thumbnails/ {{
+            alias {workDrive}:/serverthumb/;
+            autoindex on;
+        }}
 """)
+
+        # Close the `http` block
+        f.write("    }\n}\n")
     print(f"Nginx configuration generated at {output_file}")
 
 
@@ -90,7 +342,7 @@ if __name__ == '__main__':
     nginx_conf_dir = os.path.join(script_dir, 'conf')
 
     # Output file path for the generated configuration
-    output_file = os.path.join(nginx_conf_dir, 'dynamic_drives.conf')
+    output_file = os.path.join(nginx_conf_dir, 'nginx.conf')
 
     setup_file = os.path.abspath(os.path.join(
         script_dir, '..', 'setup.json'))

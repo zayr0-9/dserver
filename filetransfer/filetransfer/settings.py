@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/5.0/ref/settings/
 from pathlib import Path
 import os
 import json
+import socket
 
 setup_file = Path(__file__).resolve().parent.parent.parent / "setup.json"
 
@@ -22,7 +23,7 @@ with open(setup_file, 'r') as f:
     # Default to "C" if not specified
     drive_letter = config.get("drive_letter", "C")
 
-# Set BASE_DIR using drive_letter
+# Set BASE_DIR using drive_letter, used in views
 BASE_DIR = Path(f"{drive_letter}:/")
 
 # BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -49,10 +50,24 @@ STATICFILES_DIRS = [
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
+def get_local_ip():
+    try:
+        # Create a dummy socket and connect to a non-routable address
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            # Use a non-routable address to identify the active interface
+            s.connect(("192.168.0.1", 1))  # Common LAN address, no actual connection needed
+            ip_address = s.getsockname()[0]
+        return ip_address
+    except Exception as e:
+        print(f"Error getting local IP: {e}")
+        return "127.0.0.1"  # Fallback to localhost
+
+# Example usage
+local_ip = get_local_ip()
+
 ALLOWED_HOSTS = ['localhost',
                  '127.0.0.1',
-                 '192.168.0.82',
-                 '192.168.0.84',
+                 local_ip,
                  ]  # Add this line
 
 
@@ -70,6 +85,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'transfer',
     'corsheaders',
+    'rest_framework',
 ]
 
 MIDDLEWARE = [

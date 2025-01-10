@@ -1,0 +1,22 @@
+.searchBarContainer {
+    position: relative;
+  }
+  
+  .searchResults {
+    /* position: absolute; */
+    background-color: #1a1a1a;
+    /* border: 1px solid #ccc; */
+    margin-top: 4px;
+    width: 800px;
+    max-height: 1000px;
+    overflow-y: auto;
+    z-index: 1000; /* ensure dropdown is above other elements */
+    padding: 10px;
+    color: #eaeaea;
+  }
+  
+  .searchResultItem {
+    padding: 4px 8px;
+    border-bottom: 1px solid #eaeaea;
+  }
+  

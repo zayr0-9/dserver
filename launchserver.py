@@ -6,12 +6,17 @@ import signal
 
 
 def read_output(name, pipe):
-    for line in iter(pipe.readline, b''):
-        try:
-            decoded_line = line.decode('utf-8', errors='replace')
-        except UnicodeDecodeError:
-            decoded_line = line.decode('utf-8', errors='ignore')
-        print(f"[{name}] {decoded_line.strip()}")
+    # Use a loop to read from the pipe
+    while True:
+        line = pipe.readline()
+        if line:
+            try:
+                decoded_line = line.decode('utf-8', errors='replace')
+            except UnicodeDecodeError:
+                decoded_line = line.decode('utf-8', errors='ignore')
+            print(f"[{name}] {decoded_line.strip()}")
+        else:
+            break
 
 
 def main():
@@ -22,7 +27,33 @@ def main():
         # Use the current working directory as the script directory
         script_dir = os.getcwd()
 
-        # Start waitress-serve
+        # set conf
+
+        # Define the relative path to the target script
+        print("loading nginx conf")
+        script_path = os.path.join("nginx-rtmp-win32-1.2.1", "driveLoad.py")
+
+        # Execute the target script
+        try:
+            subprocess.run(["python", script_path], check=True)
+        except subprocess.CalledProcessError as e:
+            print(f"Error occurred while running the script: {e}")
+
+        # Start nginx
+        print("Starting Nginx...")
+        nginx_dir = os.path.join(script_dir, 'nginx-rtmp-win32-1.2.1')
+        print(f"nginx_dir = {nginx_dir}")
+        nginx_exe = os.path.join(nginx_dir, 'nginx.exe')
+        print(f"nginx_exe = {nginx_exe}")
+        nginx_process = subprocess.Popen(
+            [nginx_exe],
+            cwd=nginx_dir,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        )
+        # Not adding nginx_process to processes list since we'll stop it differently
+
+         # Start waitress-serve
         print("Starting waitress-serve...")
         waitress_command = [
             os.path.join(script_dir, 'myvenv', 'Scripts', 'python.exe'),
@@ -32,40 +63,17 @@ def main():
             waitress_command,
             cwd=os.path.join(script_dir, 'filetransfer'),
             stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT
+            stderr=subprocess.PIPE  # Changed to stderr for error output
         )
         processes.append(('waitress', waitress_process))
-
-        # Start npm frontend
-        print("Starting npm frontend...")
-        npm_process = subprocess.Popen(
-            ['npm', 'start'],
-            cwd=os.path.join(script_dir, 'frontend'),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            shell=True
-        )
-        processes.append(('npm', npm_process))
-
-        # Start nginx
-        print("Starting Nginx...")
-        nginx_dir = os.path.join(script_dir, 'nginx-rtmp-win32-1.2.1')
-        nginx_exe = os.path.join(nginx_dir, 'nginx.exe')
-        nginx_process = subprocess.Popen(
-            [nginx_exe],
-            cwd=nginx_dir,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT
-        )
-        # Not adding nginx_process to processes list since we'll stop it differently
-
+        
         print("\nServers are running.")
         print("Press any key to stop the servers.")
 
         # Start threads to read outputs
         threads = []
         for name, proc in processes:
-            t = threading.Thread(target=read_output, args=(name, proc))
+            t = threading.Thread(target=read_output, args=(name, proc.stdout))
             t.daemon = True  # Allows threads to exit when main program exits
             t.start()
             threads.append(t)

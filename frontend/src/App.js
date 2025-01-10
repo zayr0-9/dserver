@@ -8,6 +8,7 @@ import FileEditor from "./Editor";
 import { getCSRFToken } from "./utils";
 import axios from "axios";
 import VideoPlayer from "./VideoPlayer";
+import AdminConsole from "./AdminConsole";
 // import AdminPage
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -46,6 +47,7 @@ function App() {
         <Route path="/upload/" element={<FileUpload />} />
         <Route path="/edit/:driveLetter/*" element={<FileEditor />} />
         <Route path="/video-player/:driveLetter/*" element={<VideoPlayer />} />
+        <Route path="/admin-console/" element={<AdminConsole />} />
         {/* Define route for other components here*/}
         {/* <Route path="/theatre-mode" element={TheatreMode} />
         <Route path="/admin" element={AdminPage} /> */}

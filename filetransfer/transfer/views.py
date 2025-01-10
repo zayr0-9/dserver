@@ -34,6 +34,8 @@ from django.utils import timezone
 from django.contrib.auth import authenticate, login, logout
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET
+from .models import FileMetadata
+from rapidfuzz import process, fuzz, utils
 
 # logger = logging.getLogger(__name__)
 
@@ -165,44 +167,134 @@ def file_upload(request, base_dir, relative_path):
     return JsonResponse({'success': True, 'uploaded_files': uploaded_files}, status=200)
 
 
+# def search_files(request):
+#     search_query = request.GET.get('q', '').strip()  # Get search query
+#     results = []
+
+#     if search_query:
+#         # Perform a search using ORM with case-insensitive matching
+#         results = FileSearchMetadata.objects.filter(
+#             Q(file_name__icontains=search_query) |
+#             Q(file_path__icontains=search_query)
+#         )
+
+#     return render(request, 'search_results.html', {'results': results, 'query': search_query})
+
+
+# def search_files(request):
+#     # Get the search query from the request
+#     query = request.GET.get('q', '').strip()
+#     thumbnail_size = 500
+
+#     # Debug output to see the query and what's being searched
+#     print(f"Search query: {query}")
+
+#     if query:
+#         # Perform case-insensitive search for both file names and file paths
+#         results = FileSearchMetadata.objects.filter(
+#             Q(file_name__icontains=query) | Q(file_path__icontains=query)
+#         )
+#     else:
+#         # No search results if no query is provided
+#         results = FileSearchMetadata.objects.none()
+
+#     context = {
+#         'items': results,
+#         'thumbnail_size': thumbnail_size,
+#         'query': query,
+#     }
+#     return render(request, 'search_results.html', context)
+
 def search_files(request):
-    search_query = request.GET.get('q', '').strip()  # Get search query
-    results = []
-
-    if search_query:
-        # Perform a search using ORM with case-insensitive matching
-        results = FileSearchMetadata.objects.filter(
-            Q(file_name__icontains=search_query) |
-            Q(file_path__icontains=search_query)
-        )
-
-    return render(request, 'search_results.html', {'results': results, 'query': search_query})
-
-
-def search_files(request):
-    # Get the search query from the request
+    """
+    Handle file search requests.
+    Query parameter: ?q=search_term
+    """
     query = request.GET.get('q', '').strip()
-    thumbnail_size = 500
+    if not query:
+        return JsonResponse({'results': [], 'message': 'No query provided.'}, status=200)
 
-    # Debug output to see the query and what's being searched
-    print(f"Search query: {query}")
+    # Example: search by name or relative_path
+    matches = FileMetadata.objects.filter(
+        Q(name__icontains=query) | Q(relative_path__icontains=query)
+    )
 
-    if query:
-        # Perform case-insensitive search for both file names and file paths
-        results = FileSearchMetadata.objects.filter(
-            Q(file_name__icontains=query) | Q(file_path__icontains=query)
-        )
-    else:
-        # No search results if no query is provided
-        results = FileSearchMetadata.objects.none()
+    # Optional: apply additional filters or constraints here (e.g., file size, file_type, etc.)
 
-    context = {
-        'items': results,
-        'thumbnail_size': thumbnail_size,
-        'query': query,
-    }
-    return render(request, 'search_results.html', context)
+    # Serialize the results
+    results = []
+    for item in matches:
+        results.append({
+            'name': item.name,
+            'relative_path': item.relative_path,
+            'absolute_path': item.absolute_path,
+            'is_dir': item.is_dir,
+            'size': item.size,
+            'modified': item.modified.strftime('%Y-%m-%d %H:%M:%S'),
+            'created': item.created.strftime('%Y-%m-%d %H:%M:%S'),
+            'file_type': item.file_type.name if item.file_type else None,
+        })
 
+    return JsonResponse({'results': results}, status=200)
+
+def fuzzy_search_files(request):
+    """
+    Fuzzy search in FileMetadata using RapidFuzz's WRatio scorer.
+    Query parameter: ?q=search_term
+    """
+    query = request.GET.get('q', '')
+    if not isinstance(query, str):
+        query = str(query)
+    query = query.strip()
+
+    if not query:
+        return JsonResponse({'results': [], 'message': 'No query provided.'}, status=200)
+
+    # 1) Load records from DB
+    all_files = FileMetadata.objects.all()
+
+    # 2) Build `choices`. Convert any non-string fields to string.
+    choices = []
+    for item in all_files:
+        # Safely coerce to string
+        name_str = str(item.name) if item.name else ""
+        relative_str = str(item.relative_path) if item.relative_path else ""
+
+        # Combine them for searching
+        search_key = f"{name_str} {relative_str}"
+        # store (search_key, item)
+        choices.append((search_key, item))
+
+    # 3) Use process.extract
+    #    If any entry in `choices` is not a string, or if `search_key` includes non-string values,
+    #    forcing them to string above should fix it.
+    results_fuzzy = process.extract(
+        query,
+        choices,
+        scorer=fuzz.WRatio,  # or fuzz.partial_ratio
+        limit=20,
+        processor=utils.default_process  # for auto-lowercase/trimming
+    )
+
+    final_results = []
+    for matched_string, score, item_obj in results_fuzzy:
+        # If score is too low, skip
+        if score < 50:
+            continue
+
+        final_results.append({
+            'name': item_obj.name,
+            'relative_path': item_obj.relative_path,
+            'absolute_path': item_obj.absolute_path,
+            'is_dir': item_obj.is_dir,
+            'size': item_obj.size,
+            'modified': item_obj.modified.strftime('%Y-%m-%d %H:%M:%S'),
+            'created': item_obj.created.strftime('%Y-%m-%d %H:%M:%S'),
+            'file_type': item_obj.file_type.name if item_obj.file_type else None,
+            'score': score,  # optionally return the fuzzy match score
+        })
+
+    return JsonResponse({'results': final_results}, status=200)
 
 def drives(request):
     drives = get_drives()
@@ -243,6 +335,7 @@ def get_drives_api(request):
 
 
 def get_drives():
+    print("fetching drives")
     drives = []
     bitmask = windll.kernel32.GetLogicalDrives()
     for letter in string.ascii_uppercase:
@@ -283,20 +376,7 @@ def delete_item(request):
         logger.error(f"Error deleting item at {full_path}: {e}")
         return JsonResponse({'error': 'Error deleting item'}, status=400)
 
-# helper function for TextEditor
 
-
-file_locks = {}  # temporary move to database
-LOCK_TIMEOUT = 300  # Lock expires after 5 minutes
-
-
-def clean_expired_locks():
-    current_time = time.time()
-    with threading.Lock():
-        for lock_key in list(file_locks.keys()):
-            lock_info = file_locks[lock_key]
-            if current_time - lock_info['timestamp'] > LOCK_TIMEOUT:
-                del file_locks[lock_key]
 
 
 @require_POST
@@ -839,6 +919,31 @@ def admin_pin_entry(request):
             return HttpResponse("Incorrect PIN. Access denied.")
     return render(request, 'enter_admin_pin.html')
 
+def admin_console_api(request):
+    path = request.GET.get('path', '')
+    full_path = os.path.normpath(os.path.join(settings.BASE_DIR, path))
+    
+    if not os.path.exists(full_path):
+        return JsonResponse({'error': 'Directory does not exist'}, status=404)
+    
+    items = []
+    for item in os.listdir(full_path):
+        item_path = os.path.join(full_path, item)
+        relative_path = os.path.relpath(item_path, settings.BASE_DIR)
+        is_dir = os.path.isdir(item_path)
+        is_public = Directory.objects.filter(path=item_path).exists()
+        
+        item_info = {
+            'name': item,
+            'relative_path': relative_path,
+            'is_dir': is_dir,
+            'size': os.path.getsize(item_path) if not is_dir else None,
+            'modified': datetime.datetime.fromtimestamp(os.path.getmtime(item_path)).isoformat(),
+            'is_public': is_public
+        }
+        items.append(item_info)
+    
+    return JsonResponse({'items': items, 'current_path': path})
 
 def admin_console(request):
     # Get the directory path from the query parameters
@@ -925,6 +1030,41 @@ def toggle_visibility(request):
 
 # react stuff
 
+SETUP_JSON_PATH = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "../../setup.json")
+)
+
+@csrf_exempt  # Allow this endpoint to be called without CSRF token for simplicity (adjust for production)
+def update_drive_letter(request):
+    if request.method != "POST":
+        return JsonResponse({"error": "Invalid request method. Use POST."}, status=405)
+
+    try:
+        data = json.loads(request.body)
+        new_drive_letter = data.get("drive_letter", "").strip().upper()
+
+        if not new_drive_letter or len(new_drive_letter) != 1 or not new_drive_letter.isalpha():
+            return JsonResponse({"error": "Invalid drive letter. Provide a single letter (e.g., 'C')."}, status=400)
+
+        # Load the current setup.json
+        with open(SETUP_JSON_PATH, "r") as file:
+            setup_data = json.load(file)
+
+        # Update the drive_letter
+        setup_data["drive_letter"] = new_drive_letter
+
+        # Write back to setup.json
+        with open(SETUP_JSON_PATH, "w") as file:
+            json.dump(setup_data, file, indent=2)
+
+        return JsonResponse({"message": "Drive letter updated successfully.", "drive_letter": new_drive_letter})
+
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Invalid JSON input."}, status=400)
+    except FileNotFoundError:
+        return JsonResponse({"error": "setup.json file not found."}, status=500)
+    except Exception as e:
+        return JsonResponse({"error": f"An unexpected error occurred: {str(e)}"}, status=500)
 
 # def theatre_view(request):
 #     search_query = request.GET.get('q', '')
