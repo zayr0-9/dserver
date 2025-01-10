@@ -21,7 +21,6 @@ build/
 dist/
 out/
 coverage/
-logs
 *.log
 *.tsbuildinfo
 
@@ -42,6 +41,8 @@ downloads/
 myvenv/Scripts
 filetransfer/temp_thumbnails/
 nginx-rtmp-win32-1.2.1/conf/dynamic_drives.conf
+nginx-rtmp-win32-1.2.1/logs/access.log
+nginx-rtmp-win32-1.2.1/logs/error.log
 eggs/
 .eggs/
 lib/

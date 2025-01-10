@@ -1,62 +1,143 @@
 import os
 import datetime
+from itertools import islice
+
 from django.utils import timezone
 from django.core.management.base import BaseCommand
+from tqdm import tqdm
+
 from transfer.models import FileMetadata, FileTypeCategory
-from tqdm import tqdm  # Import tqdm for progress bar
-from itertools import islice
 
 # List of base directories to index
 BASE_DIRS = ['C:\\', 'D:\\']  # Add more directories as needed
 
-# Batch size for database operations
+# Batch size for database delete operations
 BATCH_SIZE = 500
 
 
 def chunked_queryset(iterable, size):
-    """Helper function to split an iterable into chunks of a given size."""
+    """
+    Helper function to split an iterable into chunks of a given size.
+    """
     iterator = iter(iterable)
     for first in iterator:
         yield [first] + list(islice(iterator, size - 1))
+
+
+def get_total_entries(base_dirs):
+    """
+    Return total count of directories + files across all given base directories.
+    This is useful for the progress bar initialization.
+    """
+    total = 0
+    for base_dir in base_dirs:
+        for _, dirs, files in os.walk(base_dir):
+            total += len(dirs) + len(files)
+    return total
+
+
+def process_file(
+    absolute_path,
+    base_dir,
+    file_name,
+    extension_to_category,
+    indexed_paths,
+):
+    """
+    Process a single file: get metadata, store/update in DB.
+    """
+    # Attempt to compute relative path. If the path is invalid or on a different mount,
+    # skip or gracefully handle.
+    try:
+        relative_path = os.path.relpath(absolute_path, base_dir)
+    except ValueError:
+        # If Windows raises "path is on mount '\\\\.\\NUL', start on mount 'C:'"
+        # you can either skip or store the absolute_path as fallback.
+        # We'll just skip these special files for now.
+        return
+
+    try:
+        file_size = os.path.getsize(absolute_path)
+        last_modified = datetime.datetime.fromtimestamp(os.path.getmtime(absolute_path))
+        created = datetime.datetime.fromtimestamp(os.path.getctime(absolute_path))
+    except OSError:
+        # In case of permission error or other OS-level issues, skip
+        return
+
+    # Convert datetimes to timezone-aware
+    last_modified = timezone.make_aware(last_modified)
+    created = timezone.make_aware(created)
+
+    indexed_paths.add(absolute_path)
+
+    # Determine file type from extension
+    ext = os.path.splitext(file_name)[1].lower()
+    file_type = extension_to_category.get(ext)
+
+    FileMetadata.objects.update_or_create(
+        absolute_path=absolute_path,
+        defaults={
+            'name': file_name,
+            'relative_path': relative_path,
+            'is_dir': False,
+            'size': file_size,
+            'modified': last_modified,
+            'created': created,
+            'file_type': file_type,
+        },
+    )
 
 
 class Command(BaseCommand):
     help = 'Efficiently sync filesystem changes to the database.'
 
     def handle(self, *args, **kwargs):
+        self.stdout.write("Building extension-to-category mapping...")
+        # Build a mapping of extensions to FileTypeCategory for quick lookups
+        extension_to_category = {}
+        for category in FileTypeCategory.objects.all():
+            for ext in category.get_extensions_list():
+                extension_to_category[ext.lower()] = category
+
         # Keep track of indexed paths
         indexed_paths = set()
 
-        # Build a mapping of extensions to FileTypeCategory
-        extension_to_category = {}
-        for category in FileTypeCategory.objects.all():
-            extensions = category.get_extensions_list()
-            for ext in extensions:
-                extension_to_category[ext] = category
+        self.stdout.write("Calculating total entries for progress bar...")
+        total_entries = get_total_entries(BASE_DIRS)
+        self.stdout.write(f"Total entries to process: {total_entries}")
 
-        # First pass: Walk over directories and collect filesystem state
-        self.stdout.write("Indexing filesystem...")
-
-        # Create tqdm progress bar for directories and files
-        total_files = sum(len(dirs) + len(files)
-                          for _, dirs, files in os.walk(BASE_DIRS[0]))
-        with tqdm(total=total_files, desc="Processing Files", unit="file") as pbar:
-            for BASE_DIR in BASE_DIRS:
-                for root, dirs, files in os.walk(BASE_DIR):
-                    # Process directories
+        # Create a progress bar for directories and files
+        with tqdm(total=total_entries, desc="Indexing Files", unit="file") as pbar:
+            # Go through each base directory
+            for base_dir in BASE_DIRS:
+                for root, dirs, files in os.walk(base_dir):
+                    # --- Process directories ---
                     for directory in dirs:
                         dir_path = os.path.join(root, directory)
-                        relative_path = os.path.relpath(dir_path, BASE_DIR)  # Calculate relative to BASE_DIR
                         absolute_path = os.path.abspath(dir_path)
-                        last_modified = datetime.datetime.fromtimestamp(os.path.getmtime(dir_path))
-                        created = datetime.datetime.fromtimestamp(os.path.getctime(dir_path))
 
+                        try:
+                            # Attempt to compute relative path
+                            relative_path = os.path.relpath(dir_path, base_dir)
+                        except ValueError:
+                            # Skip special paths on different mounts
+                            pbar.update(1)
+                            continue
+
+                        try:
+                            last_modified = datetime.datetime.fromtimestamp(os.path.getmtime(dir_path))
+                            created = datetime.datetime.fromtimestamp(os.path.getctime(dir_path))
+                        except OSError:
+                            # In case of permission errors or other OS issues
+                            pbar.update(1)
+                            continue
+
+                        # Convert to timezone-aware
                         last_modified = timezone.make_aware(last_modified)
                         created = timezone.make_aware(created)
 
                         indexed_paths.add(absolute_path)
 
-                        # Add directory to the database
                         FileMetadata.objects.update_or_create(
                             absolute_path=absolute_path,
                             defaults={
@@ -69,89 +150,29 @@ class Command(BaseCommand):
                                 'file_type': None,
                             }
                         )
+                        pbar.update(1)
 
-                        pbar.update(1)  # Update progress bar for directory
-
-                    # Process files
+                    # --- Process files ---
                     for file in files:
                         file_path = os.path.join(root, file)
-                        relative_path = os.path.relpath(file_path, BASE_DIR)  # Calculate relative to BASE_DIR
                         absolute_path = os.path.abspath(file_path)
-                        file_size = os.path.getsize(file_path)
-                        last_modified = datetime.datetime.fromtimestamp(os.path.getmtime(file_path))
-                        created = datetime.datetime.fromtimestamp(os.path.getctime(file_path))
-
-                        last_modified = timezone.make_aware(last_modified)
-                        created = timezone.make_aware(created)
-
-                        indexed_paths.add(absolute_path)
-
-                        ext = os.path.splitext(file)[1].lower()
-                        file_type = extension_to_category.get(ext)
-
-                        # Add file to the database
-                        FileMetadata.objects.update_or_create(
+                        process_file(
                             absolute_path=absolute_path,
-                            defaults={
-                                'name': file,
-                                'relative_path': relative_path,
-                                'is_dir': False,
-                                'size': file_size,
-                                'modified': last_modified,
-                                'created': created,
-                                'file_type': file_type,
-                            }
+                            base_dir=base_dir,
+                            file_name=file,
+                            extension_to_category=extension_to_category,
+                            indexed_paths=indexed_paths,
                         )
+                        pbar.update(1)
 
-                        pbar.update(1)  # Update progress bar for file
-
-
-
-                    # Process files
-                    for file in files:
-                        file_path = os.path.join(root, file)
-                        relative_path = os.path.relpath(file_path, BASE_DIR)
-                        absolute_path = os.path.abspath(file_path)
-                        file_size = os.path.getsize(file_path)
-                        last_modified = datetime.datetime.fromtimestamp(
-                            os.path.getmtime(file_path))
-                        created = datetime.datetime.fromtimestamp(
-                            os.path.getctime(file_path))
-
-                        last_modified = timezone.make_aware(last_modified)
-                        created = timezone.make_aware(created)
-
-                        indexed_paths.add(absolute_path)
-
-                        ext = os.path.splitext(file)[1].lower()
-                        file_type = extension_to_category.get(ext)
-
-                        # Add file to the database
-                        FileMetadata.objects.update_or_create(
-                            absolute_path=absolute_path,
-                            defaults={
-                                'name': file,
-                                'relative_path': relative_path,
-                                'is_dir': False,
-                                'size': file_size,
-                                'modified': last_modified,
-                                'created': created,
-                                'file_type': file_type,
-                            }
-                        )
-
-                        pbar.update(1)  # Update progress bar for file
-
-        # Second pass: Remove outdated entries from the database
+        # --- SECOND PASS: REMOVE OUTDATED ENTRIES ---
         self.stdout.write("Cleaning up removed entries...")
-        all_paths_in_db = FileMetadata.objects.values_list(
-            'absolute_path', flat=True)
+        all_paths_in_db = FileMetadata.objects.values_list('absolute_path', flat=True)
         paths_to_delete = set(all_paths_in_db) - indexed_paths
 
-        # Create tqdm progress bar for deletion
         with tqdm(total=len(paths_to_delete), desc="Deleting Removed Files", unit="file") as pbar:
             for chunk in chunked_queryset(paths_to_delete, BATCH_SIZE):
                 FileMetadata.objects.filter(absolute_path__in=chunk).delete()
-                pbar.update(len(chunk))  # Update progress bar for deletions
+                pbar.update(len(chunk))
 
         self.stdout.write(self.style.SUCCESS("Filesystem sync completed."))
