@@ -3,6 +3,7 @@ import string
 import os
 import socket
 import json
+from pathlib import Path
 
 
 def load_setup_config(file_path):
@@ -38,6 +39,22 @@ def get_drives():
 
 
 def generate_nginx_config(drives, output_file, workDrive):
+    current_dir = Path(__file__).resolve().parent
+    print(f"current_dir{current_dir}")
+    # Step 2: Construct the path to the static folder
+    static_folder_path = current_dir / '../frontend/build/static/'
+    static_folder_path2 = current_dir / '../filetransfer/static/'
+    static_folder_media = current_dir / '../filetransfer/static/media'
+    build_folder_path = current_dir / '../frontend/build/'
+    static_folder_path = static_folder_path.resolve()
+    
+    # Step 3: Convert to POSIX-style path (with forward slashes)
+    static_folder_path = static_folder_path.as_posix()
+    static_folder_path2 = static_folder_path2.resolve().as_posix()
+    static_folder_media = static_folder_media.resolve().as_posix()
+    build_folder_path = build_folder_path.resolve().as_posix()
+
+
     with open(output_file, 'w') as f:
         # Write the initial part of the configuration, including the `http` block header
         f.write(
@@ -93,11 +110,11 @@ http {{
 
         # Serve static files
         location /static/ {{
-            alias C:/Users/rajka/Desktop/projects/dserver/frontend/build/static/;
+            alias {static_folder_path}/;
         }}
 
         location /django_static/ {{
-            alias C:/Users/rajka/Desktop/projects/dserver/filetransfer/static/;
+            alias {static_folder_path2}/;
         }}
 
         location /api/ {{
@@ -115,12 +132,12 @@ http {{
 
         # Serve media files
         location /media/ {{
-            alias C:/Users/rajka/Desktop/projects/dserver/filetransfer/static/media/;
+            alias {static_folder_media}/;
         }}
 
         # Serve downloads directly
         location / {{
-            root C:/Users/rajka/Desktop/projects/dserver/frontend/build/;
+            root {build_folder_path}/;
             try_files $uri /index.html;
         }}
 
