@@ -57,12 +57,12 @@
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
 }
   .topBar h1 {
-    font-size: 3em;
+    font-size: 2em;
   }
   
   .topBar .uploadLink {
     color: #ccc;
-    font-size: 1.2em;
+    /* font-size: 1.2em; */
   }
   .topBar .option {
     padding: 10px 20px;
@@ -71,7 +71,7 @@
     border: none;
     border-radius: 5px;
     cursor: pointer;
-    font-size: 2em;
+    font-size: 1.5em;
   }
   
   .topBar .option:hover {
@@ -140,7 +140,7 @@
     text-align: left;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap; /* Prevent text from wrapping */
+    white-space: normal; /* Prevent text from wrapping */
   }
   
   th:first-of-type {
@@ -155,7 +155,12 @@
   tr:last-of-type td:last-of-type {
     border-bottom-right-radius: 10px;
   }
-
+  .text {
+    text-decoration: underline;
+  }
+  .text .a {
+    text-decoration: underline;
+  }
   td a {
     font-size: 1em;
     /* padding: 15px 25px; */
@@ -166,7 +171,7 @@
     transition: background-color 0.3s, transform 0.2s;
     display: inline-block;
     width: 100%; /* Make it full-width for touch targets */
-    text-align: center;
+    text-align: left;
   }
   th {
     background-color: #1d1d1d;
@@ -200,12 +205,21 @@
     background-color: #28a745;
   }
   
+  
   .actionButtons a.stream {
     background-color: #ffc107;
   }
   
-  .actionButtons a.delete {
+  .actionButtons button.delete {
+    padding: 5px 10px;
+    text-decoration: none;
     background-color: #b22828;
+    border-radius: 3px;
+    border-color: transparent;
+  }
+
+  .actionButtons button:hover {
+    opacity: 0.8;
   }
   .actionButtons a:hover {
     opacity: 0.8;
@@ -504,4 +518,9 @@
 
 .searchResultItem:hover {
   background-color: #444;
+}
+
+table tbody tr:hover {
+  background-color: #333; /* Your desired hover color */
+  color: #fff; /* Ensure text remains readable */
 }

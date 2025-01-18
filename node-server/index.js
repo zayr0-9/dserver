@@ -1,6 +1,7 @@
 const express = require("express");
 const http = require("http");
 const socketIO = require("socket.io");
+const { setupTerminalSockets } = require("./terminalSockets"); // Import the terminal logic
 
 // Initialize express and create an HTTP server
 const app = express();

@@ -28,10 +28,10 @@ const FileSearch = ({ driveLetter = "D" }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [results, setResults] = useState([]);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-
+  
   const navigate = useNavigate();
-
-  const handleSearch = async () => {
+  
+  const handleSearch = async () =>    {
     try {
       const response = await axios.get(
         `/api/search/?q=${encodeURIComponent(searchTerm)}`,
@@ -51,6 +51,7 @@ const FileSearch = ({ driveLetter = "D" }) => {
   };
 
   const handleResultClick = (item) => {
+    const driveLetter = encodeURIComponent(item.drive.replace(/:\\$/, ""));
     // If it's a directory, navigate to that directory
     if (item.is_dir) {
       navigate(
@@ -76,6 +77,7 @@ const FileSearch = ({ driveLetter = "D" }) => {
   const handleViewFile = (item) => {
     // Suppose you only allow "edit" for text files. If you track that with item.is_text
     // Navigate to your /edit route
+    const driveLetter = encodeURIComponent(item.drive.replace(/:\\$/, ""));
     navigate(`/edit/${driveLetter}/${encodeURIComponent(item.relative_path)}`);
     setIsDropdownOpen(false);
   };
@@ -100,49 +102,44 @@ const FileSearch = ({ driveLetter = "D" }) => {
             Hide
           </button>
 
-          {results.map((item) => (
-            <div key={item.relative_path} className={styles.searchResultItem}>
-              {/* 
-                If it's a directory, clicking name opens it in DriveContents.
-                If it's a file, clicking name navigates to parent directory but highlights file. 
-              */}
-              <span
-                className={styles.searchResultName}
-                onClick={() => handleResultClick(item)}
-                style={{ cursor: "pointer" }}
-              >
-                <strong>{item.name}</strong>
-                {item.is_dir ? " (Directory)" : ""}
-              </span>
+          {results.map((item) => {
+            const driveLetter = encodeURIComponent(item.drive.replace(/:\\$/, ""));
+            return (
+              <div key={item.relative_path} className={styles.searchResultItem}>
+                <span
+                  className={styles.searchResultName}
+                  onClick={() => handleResultClick(item)}
+                  style={{ cursor: "pointer" }}
+                >
+                  <strong>{item.name}</strong>
+                  {item.is_dir ? " (Directory)" : ""}
+                </span>
 
-              {/* If it's not a directory, show additional actions */}
-              {!item.is_dir && (
-                <div className={styles.searchResultActions}>
-                  {/* Download */}
-                  <a
-                    href={`/downloads/${driveLetter}/${encodeURIComponent(
-                      item.relative_path
-                    )}`}
-                    download
-                    className={styles.downloadLink}
-                  >
-                    Download
-                  </a>
-
-                  {/* View/Edit Button (e.g., for text files) */}
-                  {item.is_text && (
-                    <button
-                      onClick={() => handleViewFile(item)}
-                      className={styles.viewButton}
+                {!item.is_dir && (
+                  <div className={styles.searchResultActions}>
+                    <a
+                      href={`/downloads/${driveLetter}/${encodeURIComponent(
+                        item.relative_path
+                      )}`}
+                      download
+                      className={styles.downloadLink}
                     >
-                      View
-                    </button>
-                  )}
-                  {/* Similarly, if item.is_video => add a Stream button, etc. */}
-                </div>
-              )}
-            </div>
-          ))}
+                      Download
+                    </a>
+
+                    {item.is_text && (
+                      <button
+                        onClick={() => handleViewFile(item)}
+                        className={styles.viewButton}
+                      >
+                        View
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

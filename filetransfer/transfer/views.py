@@ -36,6 +36,8 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET
 from .models import FileMetadata
 from rapidfuzz import process, fuzz, utils
+from concurrent.futures import ThreadPoolExecutor
+
 
 # logger = logging.getLogger(__name__)
 
@@ -45,7 +47,15 @@ ADMIN_PIN = "12345"
 
 
 logger = logging.getLogger(__name__)
-
+FILE_TYPES = {
+    'images': ['.jpg', '.jpeg', '.png', '.bmp', '.tiff'],
+    'videos': ['.mp4', '.avi', '.mov', '.webm', '.mkv', '.gif'],
+    'documents': ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.txt', '.log', '.txt', '.py', '.js', '.html', '.css',
+                       '.json', '.md', '.java', '.c', '.cpp'],
+    'audio': ['.mp3', '.wav', '.aac', '.flac'],
+    'archives': ['.zip', '.rar', '.7z', '.tar', '.gz']
+}
+temp_dir = os.path.join(settings.BASE_DIR, 'temp_thumbnails')
 
 @require_POST
 def api_login(request):
@@ -166,45 +176,6 @@ def file_upload(request, base_dir, relative_path):
 
     return JsonResponse({'success': True, 'uploaded_files': uploaded_files}, status=200)
 
-
-# def search_files(request):
-#     search_query = request.GET.get('q', '').strip()  # Get search query
-#     results = []
-
-#     if search_query:
-#         # Perform a search using ORM with case-insensitive matching
-#         results = FileSearchMetadata.objects.filter(
-#             Q(file_name__icontains=search_query) |
-#             Q(file_path__icontains=search_query)
-#         )
-
-#     return render(request, 'search_results.html', {'results': results, 'query': search_query})
-
-
-# def search_files(request):
-#     # Get the search query from the request
-#     query = request.GET.get('q', '').strip()
-#     thumbnail_size = 500
-
-#     # Debug output to see the query and what's being searched
-#     print(f"Search query: {query}")
-
-#     if query:
-#         # Perform case-insensitive search for both file names and file paths
-#         results = FileSearchMetadata.objects.filter(
-#             Q(file_name__icontains=query) | Q(file_path__icontains=query)
-#         )
-#     else:
-#         # No search results if no query is provided
-#         results = FileSearchMetadata.objects.none()
-
-#     context = {
-#         'items': results,
-#         'thumbnail_size': thumbnail_size,
-#         'query': query,
-#     }
-#     return render(request, 'search_results.html', context)
-
 def search_files(request):
     """
     Handle file search requests.
@@ -228,6 +199,7 @@ def search_files(request):
             'name': item.name,
             'relative_path': item.relative_path,
             'absolute_path': item.absolute_path,
+            'drive': item.absolute_path[:3],
             'is_dir': item.is_dir,
             'size': item.size,
             'modified': item.modified.strftime('%Y-%m-%d %H:%M:%S'),
@@ -237,64 +209,65 @@ def search_files(request):
 
     return JsonResponse({'results': results}, status=200)
 
-def fuzzy_search_files(request):
-    """
-    Fuzzy search in FileMetadata using RapidFuzz's WRatio scorer.
-    Query parameter: ?q=search_term
-    """
-    query = request.GET.get('q', '')
-    if not isinstance(query, str):
-        query = str(query)
-    query = query.strip()
+# def fuzzy_search_files(request):
+#     """
+#     Fuzzy search in FileMetadata using RapidFuzz's WRatio scorer.
+#     Query parameter: ?q=search_term
+#     """
+#     query = request.GET.get('q', '')
+#     if not isinstance(query, str):
+#         query = str(query)
+#     query = query.strip()
 
-    if not query:
-        return JsonResponse({'results': [], 'message': 'No query provided.'}, status=200)
+#     if not query:
+#         return JsonResponse({'results': [], 'message': 'No query provided.'}, status=200)
 
-    # 1) Load records from DB
-    all_files = FileMetadata.objects.all()
+#     # 1) Load records from DB
+#     all_files = FileMetadata.objects.all()
 
-    # 2) Build `choices`. Convert any non-string fields to string.
-    choices = []
-    for item in all_files:
-        # Safely coerce to string
-        name_str = str(item.name) if item.name else ""
-        relative_str = str(item.relative_path) if item.relative_path else ""
+#     # 2) Build `choices`. Convert any non-string fields to string.
+#     choices = []
+#     for item in all_files:
+#         # Safely coerce to string
+#         name_str = str(item.name) if item.name else ""
+#         relative_str = str(item.relative_path) if item.relative_path else ""
 
-        # Combine them for searching
-        search_key = f"{name_str} {relative_str}"
-        # store (search_key, item)
-        choices.append((search_key, item))
+#         # Combine them for searching
+#         search_key = f"{name_str} {relative_str}"
+#         # store (search_key, item)
+#         choices.append((search_key, item))
 
-    # 3) Use process.extract
-    #    If any entry in `choices` is not a string, or if `search_key` includes non-string values,
-    #    forcing them to string above should fix it.
-    results_fuzzy = process.extract(
-        query,
-        choices,
-        scorer=fuzz.WRatio,  # or fuzz.partial_ratio
-        limit=20,
-        processor=utils.default_process  # for auto-lowercase/trimming
-    )
+#     # 3) Use process.extract
+#     #    If any entry in `choices` is not a string, or if `search_key` includes non-string values,
+#     #    forcing them to string above should fix it.
+#     results_fuzzy = process.extract(
+#         query,
+#         choices,
+#         scorer=fuzz.WRatio,  # or fuzz.partial_ratio
+#         limit=20,
+#         processor=utils.default_process  # for auto-lowercase/trimming
+#     )
 
-    final_results = []
-    for matched_string, score, item_obj in results_fuzzy:
-        # If score is too low, skip
-        if score < 50:
-            continue
+#     final_results = []
+#     for matched_string, score, item_obj in results_fuzzy:
+#         # If score is too low, skip
+#         if score < 50:
+#             continue
 
-        final_results.append({
-            'name': item_obj.name,
-            'relative_path': item_obj.relative_path,
-            'absolute_path': item_obj.absolute_path,
-            'is_dir': item_obj.is_dir,
-            'size': item_obj.size,
-            'modified': item_obj.modified.strftime('%Y-%m-%d %H:%M:%S'),
-            'created': item_obj.created.strftime('%Y-%m-%d %H:%M:%S'),
-            'file_type': item_obj.file_type.name if item_obj.file_type else None,
-            'score': score,  # optionally return the fuzzy match score
-        })
+#         final_results.append({
+#             'name': item_obj.name,
+#             'relative_path': item_obj.relative_path,
+#             'absolute_path': item_obj.absolute_path,
+#             'is_dir': item_obj.is_dir,
+#             'size': item_obj.size,
+#             'modified': item_obj.modified.strftime('%Y-%m-%d %H:%M:%S'),
+#             'created': item_obj.created.strftime('%Y-%m-%d %H:%M:%S'),
+#             'file_type': item_obj.file_type.name if item_obj.file_type else None,
+#             'score': score,  # optionally return the fuzzy match score
+#         })
 
-    return JsonResponse({'results': final_results}, status=200)
+#     return JsonResponse({'results': final_results}, status=200)
+# need to fix 
 
 def drives(request):
     drives = get_drives()
@@ -303,7 +276,7 @@ def drives(request):
     }
     return render(request, 'drivelist.html', context)
 
-# for react spa
+
 
 
 @csrf_exempt  # Use with caution; consider implementing proper CSRF handling
@@ -335,12 +308,26 @@ def get_drives_api(request):
 
 
 def get_drives():
-    print("fetching drives")
+    print("Fetching drives")
     drives = []
     bitmask = windll.kernel32.GetLogicalDrives()
+    
+    # Drive types constants
+    DRIVE_UNKNOWN = 0
+    DRIVE_NO_ROOT_DIR = 1
+    DRIVE_REMOVABLE = 2
+    DRIVE_FIXED = 3
+    DRIVE_REMOTE = 4
+    DRIVE_CDROM = 5
+    DRIVE_RAMDISK = 6
+
     for letter in string.ascii_uppercase:
         if bitmask & 1:
-            drives.append(letter)
+            drive_path = f"{letter}:/"
+            drive_type = windll.kernel32.GetDriveTypeW(drive_path)
+            # Include only fixed drives (e.g., hard disks, SSDs)
+            if drive_type == DRIVE_FIXED:
+                drives.append(letter)
         bitmask >>= 1
     return drives
 
@@ -377,8 +364,6 @@ def delete_item(request):
         return JsonResponse({'error': 'Error deleting item'}, status=400)
 
 
-
-
 @require_POST
 def get_file_content(request):
     data = json.loads(request.body)
@@ -413,13 +398,7 @@ def get_file_content(request):
 
 
 def is_text_file(file_path):
-    # logger.debug(f"checking if file is text at path : {file_path}")
-    text_extensions = ['.txt', '.py', '.js', '.html', '.css',
-                       '.json', '.md', '.java', '.c', '.cpp']  # Extend as needed
-
-    # logger.debug(os.path.splitext(file_path)[1].lower()
-    #              )
-    return os.path.splitext(file_path)[1].lower() in text_extensions
+    return os.path.splitext(file_path)[1].lower() in FILE_TYPES['documents']
 
 
 @require_POST
@@ -453,251 +432,288 @@ def save_file_content(request):
     except Exception as e:
         logger.error(f"Error writing to file at {full_path}: {e}")
         return JsonResponse({'error': 'Error saving file'}, status=500)
-# @require_GET
 
 
-def file_list_api(request, drive_letter):
-    logger.debug("Testing logging configuration.")
-    base_dir = unquote(drive_letter)
-    path = unquote(request.GET.get('path', '')).lstrip('/\\')
-
-    # Boolean to control whether hidden files are shown
-    show_hidden_files = False  # Default is False; can be updated from admin settings
-
-    # Sorting parameters
-    sort_by = request.GET.get('sort_by', 'name')  # Default sort by name
-    sort_dir = request.GET.get('sort_dir', 'asc')  # Default ascending order
-
-    # Filtering parameters
-    filter_type = request.GET.get('type', 'all')  # 'all', 'dir', 'file'
-    size_min = request.GET.get('size_min')
-    size_max = request.GET.get('size_max')
-    date_from = request.GET.get('date_from')
-    date_to = request.GET.get('date_to')
-    sub_file_type = request.GET.get('file_type', 'all')  # Sub-file type filter
-
-    # Pagination parameters
-    try:
-        page = int(request.GET.get('page', '1'))
-        page_size = int(request.GET.get('page_size', '100'))
-        if page < 1:
-            page = 1
-    except ValueError:
-        page = 1
-        page_size = 100
-
-    # Define file type extensions
-    FILE_TYPES = {
-        'images': ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff'],
-        'videos': ['.mp4', '.avi', '.mov', '.webm', '.mkv'],
-        'documents': ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.txt'],
-        'audio': ['.mp3', '.wav', '.aac', '.flac'],
-        'archives': ['.zip', '.rar', '.7z', '.tar', '.gz']
+def get_request_params(request):
+    return {
+        'path': unquote(request.GET.get('path', '')).lstrip('/\\'),
+        'sort_by': request.GET.get('sort_by', 'name'),
+        'sort_dir': request.GET.get('sort_dir', 'asc'),
+        'filter_type': request.GET.get('type', 'all'),
+        'size_min': request.GET.get('size_min'),
+        'size_max': request.GET.get('size_max'),
+        'date_from': request.GET.get('date_from'),
+        'date_to': request.GET.get('date_to'),
+        'file_type': request.GET.get('file_type', 'all'),
+        'page': max(1, int(request.GET.get('page', '1'))),
+        'page_size': int(request.GET.get('page_size', '100')),
+        'show_hidden_files': False
     }
 
-    if not base_dir:
-        return JsonResponse({'error': 'Base directory not specified'}, status=400)
-
-    base_dir_with_drive = f"{base_dir}:\\"
-    full_path = os.path.normpath(os.path.join(base_dir_with_drive, path))
-
-    if not os.path.exists(full_path):
-        raise Http404("Directory does not exist")
-
-    if not full_path.startswith(os.path.normpath(base_dir_with_drive)):
-        raise Http404("Access denied")
-
-    # Check if the directory is private (Assuming Directory model exists)
-    # directory_entry = Directory.objects.filter(path=full_path).first()
-    # session_key = f"admin_pin_valid_{base_dir}_{path}"
-    # Implement access control as needed
-
-    # Default size is 100x100 for thumbnails
-    thumbnail_size = 100
-    temp_dir = os.path.join(settings.BASE_DIR, 'temp_thumbnails')
-    os.makedirs(temp_dir, exist_ok=True)
-
+def get_directory_items(full_path, show_hidden_files, path):
     items = []
     with os.scandir(full_path) as entries:
         for entry in entries:
-            # Skip hidden files if show_hidden_files is False
             if not show_hidden_files and entry.name.startswith('.'):
                 continue
-
-            item_name = entry.name
-            item_path = entry.path
-            is_dir = entry.is_dir(follow_symlinks=False)
             try:
                 stat = entry.stat(follow_symlinks=False)
             except FileNotFoundError:
-                continue  # Skip if file was removed during scanning
-            size = stat.st_size if not is_dir else None
-            modified = datetime.datetime.fromtimestamp(
-                stat.st_mtime).isoformat()
-            created = datetime.datetime.fromtimestamp(
-                stat.st_ctime).isoformat()
-            relative_path = os.path.join(path, item_name).replace('\\', '/')
-            file_ext = os.path.splitext(item_name)[1].lower()
+                continue
+            relative_path = os.path.join(path, entry.name).replace('\\', '/')
+            file_ext = os.path.splitext(entry.name)[1].lower()
+            if file_ext in FILE_TYPES['videos']:
+                is_video = True
+            else:
+                is_video=False
+            if file_ext in FILE_TYPES['documents']:
+                is_text_file = True
+            else: 
+                is_text_file = False
 
-            # Determine if the file is a video
-            video_extensions = tuple(FILE_TYPES['videos'])
-            is_video = not is_dir and file_ext in video_extensions
-
-            item_info = {
-                'name': item_name,
+            items.append({
+                'name': entry.name,
                 'path': path,
+                'is_dir': entry.is_dir(follow_symlinks=False),
+                'size': stat.st_size if not entry.is_dir() else None,
+                'modified': datetime.datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                'created': datetime.datetime.fromtimestamp(stat.st_ctime).isoformat(),
                 'relative_path': relative_path,
-                'is_dir': is_dir,
-                'size': size,
-                'modified': modified,
-                'created': created,
-                'thumbnail': None,
+                'thumb_path': entry.path,
                 'is_video': is_video,
-                'is_text': is_text_file(item_name),
-            }
+                'is_text' : is_text_file
+            })
+    return items
 
-            # Generate thumbnails for images
-            if not is_dir and file_ext in FILE_TYPES['images']:
-                try:
-                    # Thumbnail file name based on size
-                    file_identifier = f"{item_path}_{int(stat.st_mtime)}_{thumbnail_size}"
-                    thumbnail_hash = hashlib.md5(
-                        file_identifier.encode('utf-8')).hexdigest()
-                    thumbnail_ext = '.png' if file_ext == '.png' else '.jpg'
-                    thumbnail_filename = f"thumb_{thumbnail_hash}{thumbnail_ext}"
-                    thumbnail_path = os.path.join(temp_dir, thumbnail_filename)
+def generate_thumbnail(item):
+    # Thumbnail generation logic for images and videos
+    thumbnail_size = 100
+    os.makedirs(temp_dir, exist_ok=True)
+    file_ext = os.path.splitext(item['name'])[1].lower()
 
-                    # Generate thumbnail if it doesn't exist
-                    if not os.path.exists(thumbnail_path):
-                        with Image.open(item_path) as image:
-                            image.thumbnail((thumbnail_size, thumbnail_size))
-                            image_format = 'PNG' if image.mode == 'RGBA' else 'JPEG'
-                            image.save(thumbnail_path, image_format)
+    try:
+        file_identifier = f"{item['thumb_path']}_{thumbnail_size}"
+        thumbnail_hash = hashlib.md5(file_identifier.encode('utf-8')).hexdigest()
+        thumbnail_ext = '.png' if file_ext == '.png' else '.jpg'
+        thumbnail_filename = f"thumb_{thumbnail_hash}{thumbnail_ext}"
+        thumbnail_path = os.path.join(temp_dir, thumbnail_filename)
 
-                    item_info['thumbnail'] = thumbnail_filename
-                except Exception as e:
-                    logger.error(
-                        f"Failed to create thumbnail for {item_name}: {e}")
+        if not item['is_dir'] and file_ext in FILE_TYPES['images']:
+            # Thumbnail generation for images
+            if os.path.exists(thumbnail_path):
+                item['thumbnail'] = thumbnail_filename  # Skip generation
+                return
+            #generate thumbnail for image
+            with Image.open(item['thumb_path']) as image:
+                image.thumbnail((thumbnail_size, thumbnail_size))
+                image_format = 'PNG' if image.mode == 'RGBA' else 'JPEG'
+                image.save(thumbnail_path, image_format)
 
-            # Generate thumbnails for videos
-            elif not is_dir and file_ext in FILE_TYPES['videos']:
-                try:
-                    # Thumbnail file name based on size
-                    file_identifier = f"{item_path}_{int(stat.st_mtime)}_{thumbnail_size*10}"
-                    thumbnail_hash = hashlib.md5(
-                        file_identifier.encode('utf-8')).hexdigest()
-                    thumbnail_filename = f"thumb_{thumbnail_hash}.jpg"
-                    thumbnail_path = os.path.join(temp_dir, thumbnail_filename)
+            item['thumbnail'] = thumbnail_filename
 
-                    # Generate thumbnail if it doesn't exist
-                    if not os.path.exists(thumbnail_path):
-                        # Use ffmpeg to extract a frame at 00:00:01
-                        command = [
-                            'ffmpeg',
-                            '-y',
-                            '-i', item_path,
-                            '-ss', '00:00:01',
-                            '-vframes', '1',
-                            '-vf', f'scale={thumbnail_size}:-1',
-                            thumbnail_path
-                        ]
-                        subprocess.run(
-                            command, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+        elif not item['is_dir'] and file_ext in FILE_TYPES['videos']:
+            if os.path.exists(thumbnail_path):
+                item['thumbnail'] = thumbnail_filename  # Set generated thumbnail
+                return
+            # Thumbnail generation for videos
+            generate_video_thumbnail(item)
 
-                    item_info['thumbnail'] = thumbnail_filename
-                except Exception as e:
-                    logger.error(
-                        f"Failed to create video thumbnail for {item_name}: {e}")
+    except Exception as e:
+        logger.error(f"Failed to create thumbnail for {item['name']}: {e}")
 
-            items.append(item_info)
+def get_ffmpeg_hwaccels():
+    """
+    Returns a list of hardware accelerations supported by the local FFmpeg build.
+    For example: ['cuda', 'dxva2', 'vaapi', 'qsv', 'vdpau', 'videotoolbox', ...]
+    """
+    try:
+        command = ['ffmpeg', '-hwaccels']
+        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
+        # The first line is typically "Hardware acceleration methods:"
+        # Subsequent lines are the available hwaccels
+        lines = result.stdout.strip().split('\n')
+        hwaccels = [line.strip() for line in lines[1:] if line.strip()]
+        return hwaccels
+    except subprocess.CalledProcessError as e:
+        logger.warning(f"Failed to query FFmpeg hardware accelerations: {e}")
+        return []
+    except Exception as e:
+        logger.error(f"Unexpected error fetching FFmpeg hardware accelerations: {e}")
+        return []
 
+def choose_hwaccel_method(preferred_order=None):
+    """
+    Return the first available hardware acceleration method based on a preferred
+    order, or None if none is available.
+    
+    Example usage:
+      hwaccel = choose_hwaccel_method(['cuda', 'vaapi', 'qsv', 'dxva2', 'videotoolbox'])
+      if hwaccel:
+          # build ffmpeg command with hwaccel
+      else:
+          # fallback to software
+    """
+    hwaccels = get_ffmpeg_hwaccels()
+    # logger.info(f"Detected FFmpeg hardware accelerations: {hwaccels}")
+
+    if not hwaccels:
+        return None
+
+    # If the caller didn't specify a preferred order, let's define a generic default
+    if preferred_order is None:
+        # Common possibilities: 'cuda' (NVIDIA), 'vaapi' (Intel/Linux), 'qsv' (Intel Quick Sync), 
+        # 'videotoolbox' (macOS), 'dxva2' (Windows), 'vdpau' (older Linux)
+        preferred_order = ['cuda', 'vaapi', 'qsv', 'videotoolbox', 'dxva2', 'vdpau']
+
+    for hw in preferred_order:
+        if hw in hwaccels:
+            # logger.info(f"Using hardware acceleration: {hw}")
+            return hw
+
+    # logger.info("No preferred hardware acceleration found. Falling back to software.")
+    return None
+
+def generate_video_thumbnail(item, thumbnail_size=100):
+    file_identifier = f"{item['thumb_path']}_{thumbnail_size}"
+    thumbnail_hash = hashlib.md5(file_identifier.encode('utf-8')).hexdigest()
+    thumbnail_filename = f"thumb_{thumbnail_hash}.jpg"
+    thumbnail_path = os.path.join(temp_dir, thumbnail_filename)
+
+    if os.path.exists(thumbnail_path):
+        item['thumbnail'] = thumbnail_filename  # Skip generation
+        return
+
+    # Choose the hardware acceleration method if available
+    hwaccel_method = choose_hwaccel_method()
+    
+    # Base command (shared arguments)
+    base_args = [
+        'ffmpeg',
+        '-y',             # Overwrite output if exists
+        '-i', item['thumb_path'],  # Input video file
+        '-ss', '00:00:10',         # Timestamp to grab frame
+        '-vframes', '1',           # Extract one frame
+        '-vf',  f'scale=-1:{thumbnail_size}',  # Resize
+        thumbnail_path
+    ]
+
+    if hwaccel_method:
+        # Insert -hwaccel <method> right after the 'ffmpeg' and '-y'
+        hwaccel_args = base_args[:2] + ['-hwaccel', hwaccel_method] + base_args[2:]
+    else:
+        # No hardware acceleration; just use base_args
+        hwaccel_args = base_args
+
+    # 1) Try hardware (or direct) command
+    try:
+        result = subprocess.run(hwaccel_args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+        if result.returncode != 0:
+            # logger.warning(f"Hardware-accelerated FFmpeg call failed with code {result.returncode}. Falling back to software.")
+            # 2) Fallback to software-only if we tried hardware
+            if hwaccel_method:
+                # Re-run base_args without hwaccel in case that's the problem
+                sw_result = subprocess.run(base_args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+                if sw_result.returncode != 0:
+                    logger.error(f"Software fallback also failed with code {sw_result.returncode}")
+                    return
+        # If no hardware method was chosen, we already used base_args
+
+    except Exception as e:
+        # logger.warning(f"Exception while running FFmpeg with hardware accel: {e}. Falling back to software.")
+        sw_result = subprocess.run(base_args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+        if sw_result.returncode != 0:
+            logger.error(f"Software fallback also failed with code {sw_result.returncode}")
+            return
+
+    # Finally, if the thumbnail was created, update item
+    if os.path.exists(thumbnail_path):
+        item['thumbnail'] = thumbnail_filename
+
+def process_thumbnails(items):
+    try:
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            executor.map(generate_thumbnail, items)
+    except Exception as e:
+        logger.error(f"Error during thumbnail generation: {e}")
+
+
+def filter_items(items, params):
+    # Apply filtering logic
     # Apply filtering
     filtered_items = []
     for item in items:
         # Apply sub-file type filter first
-        if sub_file_type != 'all' and not item['is_dir']:
+        if params['file_type'] != 'all' and not item['is_dir']:
             file_ext = os.path.splitext(item['name'])[1].lower()
-            if file_ext not in FILE_TYPES.get(sub_file_type, []):
+            if file_ext not in FILE_TYPES.get(params['file_type'], []):
                 continue  # Skip files that don't match the selected sub-type
 
         # Then filter by type (dir, file, all)
-        if filter_type == 'dir' and not item['is_dir']:
+        if params['filter_type'] == 'dir' and not item['is_dir']:
             continue
-        if filter_type == 'file' and item['is_dir']:
+        if params['filter_type'] == 'file' and item['is_dir']:
             continue
 
         # Filter by size
-        if size_min and item['size'] is not None and item['size'] < int(size_min):
+        if params['size_min'] and item['size'] is not None and item['size'] < int(params['size_min']):
             continue
-        if size_max and item['size'] is not None and item['size'] > int(size_max):
+        if params['size_max'] and item['size'] is not None and item['size'] > int(params['size_max']):
             continue
 
         # Filter by date
-        if date_from:
-            date_from_dt = datetime.datetime.strptime(date_from, '%Y-%m-%d')
+        if params['date_from']:
+            date_from_dt = datetime.datetime.strptime(params['date_from'], '%Y-%m-%d')
             item_modified_dt = datetime.datetime.fromisoformat(
                 item['modified'])
             if item_modified_dt < date_from_dt:
                 continue
-        if date_to:
-            date_to_dt = datetime.datetime.strptime(date_to, '%Y-%m-%d')
+        if params['date_to']:
+            date_to_dt = datetime.datetime.strptime(params['date_to'], '%Y-%m-%d')
             item_modified_dt = datetime.datetime.fromisoformat(
                 item['modified'])
             if item_modified_dt > date_to_dt:
                 continue
-
         filtered_items.append(item)
+    return(filtered_items)  # Implement filters for type, size, and dates
 
-    # Apply sorting
+def sort_items(items, sort_by, sort_dir):
+    # Sort items by key and order
     reverse = (sort_dir == 'desc')
+    return sorted(items, key=lambda x: x.get(sort_by, ""), reverse=reverse)
 
-    # Define sort key function
-    def sort_key(item):
-        key = item.get(sort_by)
-        if key is None:
-            if sort_by == 'size':
-                return 0
-            return ""
-        return key
-
-    # Ensure directories are listed first
-    filtered_items.sort(
-        key=lambda item: (not item['is_dir'], sort_key(item)),
-        reverse=reverse
-    )
-
-    # Pagination
-    total_items = len(filtered_items)
-    total_pages = (total_items + page_size - 1) // page_size
-    if page > total_pages and total_pages != 0:
-        page = total_pages
+def paginate_items(items, page, page_size):
     start_index = (page - 1) * page_size
     end_index = start_index + page_size
-    paginated_items = filtered_items[start_index:end_index]
+    return items[start_index:end_index], len(items)
 
-    response_data = {
-        'items': paginated_items,
-        'current_path': path,
-        'base_dir': base_dir,
-        'thumbnail_size': thumbnail_size,
-        'is_private': False,  # Update based on access control
-        'q': request.GET.get('q', ''),
-        'sort_by': sort_by,
-        'sort_dir': sort_dir,
-        'filter_type': filter_type,
-        'file_type': sub_file_type,
-        'size_min': size_min,
-        'size_max': size_max,
-        'date_from': date_from,
-        'date_to': date_to,
+def file_list_api(request, drive_letter):
+    base_dir = unquote(drive_letter)
+    if not base_dir:
+        return JsonResponse({'error': 'Base directory not specified'}, status=400)
+    
+    params = get_request_params(request)
+    full_path = os.path.normpath(os.path.join(f"{base_dir}:\\", params['path']))
+
+    if not os.path.exists(full_path):
+        raise Http404("Directory does not exist")
+
+    if not full_path.startswith(os.path.normpath(f"{base_dir}:\\")):
+        raise Http404("Access denied")
+
+    items = get_directory_items(full_path, params['show_hidden_files'], params['path'])
+    process_thumbnails(items)
+    filtered_items = filter_items(items, params)
+    sorted_items = sort_items(filtered_items, params['sort_by'], params['sort_dir'])
+    paginated_items, total_items = paginate_items(sorted_items, params['page'], params['page_size'])
+
+    return JsonResponse({
+        'items': sorted_items,
         'pagination': {
-            'current_page': page,
-            'page_size': page_size,
-            'total_pages': total_pages,
-            'total_items': total_items,
+            'current_page': params['page'],
+            'page_size': params['page_size'],
+            'total_items': total_items
         }
-    }
-    return JsonResponse(response_data)
+    })
 
 
 def get_latest_mtime(directory):

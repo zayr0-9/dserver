@@ -163,7 +163,7 @@ const DriveContents = () => {
         if (!isPrivate && data) {
           setItems(data.items);
           setBaseDir(data.base_dir);
-          setThumbnailSize(data.thumbnail_size.toString());
+          // setThumbnailSize(data.thumbnail_size.toString());
           setPagination({
             current_page: data.pagination.current_page,
             page_size: data.pagination.page_size,
@@ -408,17 +408,21 @@ const DriveContents = () => {
           >
             Go Up
           </button>
-          {/* "Upload More Files" Link */}
-          <div className={styles.uploadLink}>
-            <Link
+          {/* "Upload Files" Link */}
+            {/* <Link
               to={`/upload?base_dir=${encodeURIComponent(
                 baseDir
               )}&path=${encodeURIComponent(currentPath)}`}
               className={styles.uploadLink}
             >
-              Upload More Files
-            </Link>
-          </div>
+              Upload Files
+            </Link> */}
+            <button className={styles.option} onClick={()=> navigate(
+        `/upload?base_dir=${encodeURIComponent(baseDir)}&path=${encodeURIComponent(
+          currentPath
+        )}`
+      )}>Upload Files</button>
+          
           {/* Advanced Filters Dropdown */}
           <div className={styles.advancedFilters}>
             <button
@@ -604,7 +608,7 @@ const DriveContents = () => {
                         Download Zip
                       </a>
                       <button
-                        className={styles.deleteButton}
+                        className={styles.delete}
                         onClick={() => handleDelete(item)}
                       >
                         Delete
@@ -626,86 +630,24 @@ const DriveContents = () => {
               return (
                 <tr key={item.relative_path}>
                   <td>
-                    <img
-                      src={`/transfer/thumbnails/${item.thumbnail}`}
-                      alt="Thumbnail"
-                      className={styles.thumbnail}
-                      onClick={() => {
-                        if (mediaIndex !== -1) {
-                          openMediaModal(mediaIndex);
-                        }
-                      }}
-                    />
+                      <img
+                        src={`/transfer/thumbnails/${item.thumbnail}`}
+                        alt="Thumbnail"
+                        className={styles.thumbnail}
+                        onClick={() => {
+                          if (mediaIndex !== -1) {
+                            openMediaModal(mediaIndex); // Open modal for image
+                          }
+                        }}
+                      />
+                    
                   </td>
                   <td>{item.name}</td>
                   <td>{item.size ? formatSize(item.size) : "—"}</td>
                   <td>{item.modified}</td>
                   <td>
-                    <div className={styles.actionButtons}>
-                      <a
-                        href={`/downloads/${driveLetter}/${encodeURIComponent(
-                          item.relative_path
-                        )}`}
-                        download
-                        className={styles.download}
-                      >
-                        Download
-                      </a>
-                      {item.is_video && (
-                        <button
-                          className={styles.streamButton}
-                          onClick={() => {
-                            navigate(
-                              `/video-player/${driveLetter}/${encodeURIComponent(
-                                item.relative_path
-                              )}`
-                            );
-                          }}
-                        >
-                          Stream
-                        </button>
-                      )}
-                      <button
-                        className={styles.deleteButton}
-                        onClick={() => handleDelete(item)}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            } else {
-              // Non-thumbnail files
-              return (
-                <tr key={item.relative_path}>
-                  <td>
-                    <span role="img" aria-label="File">
-                      📄
-                    </span>
-                  </td>
-                  <td>
-                    {item.is_text ? (
-                      <a
-                        href="#"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          navigate(
-                            `/edit/${driveLetter}/${encodeURIComponent(
-                              item.relative_path
-                            )}`
-                          );
-                        }}
-                      >
-                        {item.name}
-                      </a>
-                    ) : (
-                      item.name
-                    )}
-                  </td>
-                  <td>{item.size ? formatSize(item.size) : "—"}</td>
-                  <td>{item.modified}</td>
-                  <td>
+                    {/* Actions */}
+                    
                     <div className={styles.actionButtons}>
                       <a
                         href={`/downloads/${driveLetter}/${encodeURIComponent(
@@ -727,7 +669,62 @@ const DriveContents = () => {
                         </a>
                       )}
                       <button
-                        className={styles.deleteButton}
+                        className={styles.delete}
+                        onClick={() => handleDelete(item)}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  
+                  </td>
+                </tr>
+              );
+            } else {
+              // Non-thumbnail files
+              return (
+                <tr key={item.relative_path}>
+                  <td>
+                    <span role="img" aria-label="File">
+                      📄
+                    </span>
+                  </td>
+                  <td>
+                    {item.is_text ? (
+                      <div className={styles.text}><a
+                      className={styles.a}
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          navigate(
+                            `/edit/${driveLetter}/${encodeURIComponent(
+                              item.relative_path
+                            )}`
+                          );
+                        }}
+                      >
+                        {item.name}
+                      </a>
+                      </div>
+                    ) : (
+                      item.name
+                    )}
+                  </td>
+                  <td>{item.size ? formatSize(item.size) : "—"}</td>
+                  <td>{item.modified}</td>
+                  <td>
+                    <div className={styles.actionButtons}>
+                      <a
+                        href={`/downloads/${driveLetter}/${encodeURIComponent(
+                          item.relative_path
+                        )}`}
+                        download
+                        className={styles.download}
+                      >
+                        Download
+                      </a>
+                    
+                      <button
+                        className={styles.delete}
                         onClick={() => handleDelete(item)}
                       >
                         Delete
@@ -778,10 +775,11 @@ const DriveContents = () => {
             {/* Modal Content */}
             <div className={styles.modalContent}>
               <div className={styles.modalMediaContainer}>
+                
                 {mediaItems[currentMediaIndex].type === "image" ? (
                   <img
                     src={mediaItems[currentMediaIndex].src}
-                    alt="Image"
+                    alt='image'
                     className={styles.modalMedia}
                   />
                 ) : (
@@ -803,7 +801,7 @@ const DriveContents = () => {
                 Download
               </a>
               <button
-                className={styles.deleteButton}
+                className={styles.delete}
                 onClick={() =>
                   handleDelete(mediaItems[currentMediaIndex].itemRef)
                 }
