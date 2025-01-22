@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef } from 'react';
 import useInfiniteScroll from './useInfiniteScroll';
 import styles from './DriveContent.module.css';
 import { useNavigate } from 'react-router-dom';
@@ -34,14 +34,14 @@ export default function InfiniteTable({
     '500px'
   );
   const navigate = useNavigate();
-  const [startIndex, setStartIndex] = useState(0); // First visible item index
-  const [endIndex, setEndIndex] = useState(0); // Last visible item index
+  // const [startIndex, setStartIndex] = useState(0); // First visible item index
+  // const [endIndex, setEndIndex] = useState(0); // Last visible item index
 
-  const rowsPerViewport = Math.ceil(containerHeight / rowHeight);
+  // const rowsPerViewport = Math.ceil(containerHeight / rowHeight);
 
-  useEffect(() => {
-    setEndIndex(rowsPerViewport + buffer); // Set initial visible window
-  }, [rowsPerViewport, buffer]);
+  // useEffect(() => {
+  //   setEndIndex(rowsPerViewport + buffer); // Set initial visible window
+  // }, [rowsPerViewport, buffer]);
 
   return (
     <div
@@ -90,8 +90,8 @@ export default function InfiniteTable({
                     </span>
                   </td>
                   <td>
-                    <a
-                      href="#"
+                    <button
+                      className={styles.linkButton}
                       onClick={(e) => {
                         e.preventDefault();
                         navigate(
@@ -102,7 +102,7 @@ export default function InfiniteTable({
                       }}
                     >
                       {item.name}
-                    </a>
+                    </button>
                   </td>
                   <td>{item.size ? formatSize(item.size) : '—'}</td>
                   <td>{item.modified}</td>
@@ -203,9 +203,8 @@ export default function InfiniteTable({
                   <td>
                     {item.is_text ? (
                       <div className={styles.text}>
-                        <a
-                          className={styles.a}
-                          href="#"
+                        <button
+                          className={styles.linkButton}
                           onClick={(e) => {
                             e.preventDefault();
                             navigate(
@@ -216,7 +215,7 @@ export default function InfiniteTable({
                           }}
                         >
                           {item.name}
-                        </a>
+                        </button>
                       </div>
                     ) : (
                       item.name

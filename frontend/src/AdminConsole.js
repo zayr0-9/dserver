@@ -5,7 +5,6 @@ import DriveLetterUpdate from './UpdateDefaultDrive';
 
 const AdminConsole = () => {
   const [items, setItems] = useState([]);
-  const [currentPath, setCurrentPath] = useState('');
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -18,7 +17,7 @@ const AdminConsole = () => {
         params: { path },
       });
       setItems(response.data.items);
-      setCurrentPath(response.data.current_path);
+      // setCurrentPath(response.data.current_path);
     } catch (err) {
       console.error(err);
       setError('Failed to load data.');

@@ -1,36 +1,34 @@
-import React, { useState, useEffect } from "react";
-import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
-import ServerHomePage from "./ServerHomePage";
-import DrivePage from "./DrivePage";
-import DriveContents from "./DriveContent";
-import FileUpload from "./FileUpload";
-import FileEditor from "./Editor";
-import { getCSRFToken } from "./utils";
-import axios from "axios";
-import VideoPlayer from "./VideoPlayer";
-import AdminConsole from "./AdminConsole";
+import React, { useEffect } from 'react';
+import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
+import ServerHomePage from './ServerHomePage';
+import DrivePage from './DrivePage';
+import DriveContents from './DriveContent';
+import FileUpload from './FileUpload';
+import FileEditor from './Editor';
+import axios from 'axios';
+import VideoPlayer from './VideoPlayer';
+import AdminConsole from './AdminConsole';
 // import AdminPage
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   useEffect(() => {
     // Fetch CSRF token
     axios
-      .get("/api/auth/csrf/", { withCredentials: true })
+      .get('/api/auth/csrf/', { withCredentials: true })
       .then((response) => {
-        console.log("CSRF token fetched successfully");
+        console.log('CSRF token fetched successfully');
       })
       .catch((error) => {
-        console.error("Error fetching CSRF token:", error);
+        console.error('Error fetching CSRF token:', error);
       });
 
     // Check authentication status
     axios
-      .get("/api/auth/check/", { withCredentials: true })
+      .get('/api/auth/check/', { withCredentials: true })
       .then((response) => {
-        setIsAuthenticated(response.data.isAuthenticated);
+        // setIsAuthenticated(response.data.isAuthenticated);
       })
       .catch((error) => {
-        console.error("Error checking authentication:", error);
+        console.error('Error checking authentication:', error);
       });
   }, []);
 

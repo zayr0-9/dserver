@@ -15,13 +15,13 @@ const FileUpload = () => {
   // Sanitize currentPath by removing leading and trailing slashes
   const currentPath = rawPath.replace(/^\/+|\/+$/g, '');
   const navigate = useNavigate();
-  const [selectedFiles, setSelectedFiles] = useState([]);
+  // const [selectedFiles, setSelectedFiles] = useState([]);
   const [uploading, setUploading] = useState(false);
-  const [uploadedFiles, setUploadedFiles] = useState(0);
-  const [totalFiles, setTotalFiles] = useState(0);
-  const [totalBytes, setTotalBytes] = useState(0);
-  const [uploadedBytes, setUploadedBytes] = useState(0);
-  const [progressPercentage, setProgressPercentage] = useState(0);
+  // const [uploadedFiles, setUploadedFiles] = useState(0);
+  // const [totalFiles, setTotalFiles] = useState(0);
+  // const [totalBytes, setTotalBytes] = useState(0);
+  // const [uploadedBytes, setUploadedBytes] = useState(0);
+  // const [progressPercentage, setProgressPercentage] = useState(0);
   const [notification, setNotification] = useState('');
 
   const uploadedFilesRef = useRef(0);
@@ -75,7 +75,7 @@ const FileUpload = () => {
       }
     }
 
-    setSelectedFiles(files);
+    // setSelectedFiles(files);
   };
 
   const startUpload = async (event) => {
@@ -96,11 +96,11 @@ const FileUpload = () => {
     totalFilesRef.current = files.length;
 
     // Reset state
-    setTotalFiles(files.length);
-    setTotalBytes(totalBytes);
-    setUploadedFiles(0);
-    setUploadedBytes(0);
-    setProgressPercentage(0);
+    // setTotalFiles(files.length);
+    // setTotalBytes(totalBytes);
+    // setUploadedFiles(0);
+    // setUploadedBytes(0);
+    // setProgressPercentage(0);
     setNotification('');
 
     if (files.length > 0) {
@@ -142,7 +142,7 @@ const FileUpload = () => {
             // Sum up total uploaded bytes
             const uploadedBytes = fileUploadProgress.reduce((a, b) => a + b, 0);
             uploadedBytesRef.current = uploadedBytes;
-            setUploadedBytes(uploadedBytes);
+            // setUploadedBytes(uploadedBytes);
 
             // Update the progress bar
             const overallProgress =
@@ -161,7 +161,7 @@ const FileUpload = () => {
         .then((response) => {
           // Update uploaded files count
           uploadedFilesRef.current += 1;
-          setUploadedFiles(uploadedFilesRef.current);
+          // setUploadedFiles(uploadedFilesRef.current);
 
           // Ensure that the progress for this file is set to its total size
           fileUploadProgress[index] = file.size;
@@ -203,15 +203,14 @@ const FileUpload = () => {
           {uploading ? 'Uploading...' : 'Upload'}
         </button>
       </form>
-      <a
-        href="#"
+      <button
         onClick={(e) => {
           e.preventDefault();
           navigate(`/drive/${baseDir}/${encodeURIComponent(rawPath)}`);
         }}
       >
         View Upload{' '}
-      </a>
+      </button>
       {/* Example link, adjust as needed */}
       {/* Progress bar */}
       <div

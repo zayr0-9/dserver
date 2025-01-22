@@ -193,6 +193,18 @@
   .infiniteTable tr:last-of-type td:last-of-type {
     border-bottom-right-radius: 10px;
   }
+
+  .linkButton  {
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    text-align: left;
+    text-decoration: underline;
+  }
   .text {
     text-decoration: underline;
   }

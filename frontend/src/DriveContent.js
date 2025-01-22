@@ -1,7 +1,7 @@
 // DriveContents.js
 
 import React, { useEffect, useState, useRef } from 'react';
-import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import queryString from 'query-string';
 import styles from './DriveContent.module.css';
 import SearchBar from './FileSearch'; // Import your SearchBar here
@@ -36,15 +36,15 @@ const DriveContents = () => {
   const queryParams = queryString.parse(location.search);
   const [allItems, setAllItems] = useState([]);
   // State variables
-  const [items, setItems] = useState([]);
-  const [baseDir, setBaseDir] = useState('');
-  const [thumbnailSize, setThumbnailSize] = useState(
-    queryParams.thumbnail_size || '100'
-  );
+  const [items] = useState([]);
+  const [baseDir] = useState('');
+  // const [thumbnailSize, setThumbnailSize] = useState(
+  //   queryParams.thumbnail_size || '100'
+  // );
   const [isPrivate, setIsPrivate] = useState(false);
   const [pin, setPin] = useState('');
   const [pinError, setPinError] = useState('');
-  const [errorMessage, setErrorMessage] = useState(''); // For displaying fetch errors
+  const [errorMessage] = useState(''); // For displaying fetch errors
   const [isDropdownVisible, setIsDropdownVisible] = useState(false);
   const dropdownRef = useRef(null);
   const isRoot = currentPath === '';
@@ -89,11 +89,11 @@ const DriveContents = () => {
   });
 
   // Pagination state
-  const [pagination, setPagination] = useState({
-    current_page: 0,
-    page_size: parseInt(queryParams.page_size) || 300, // smaller page_size works better for infinite scroll
-    total_items: 0,
-  });
+  // const [pagination, setPagination] = useState({
+  //   current_page: 0,
+  //   page_size: parseInt(queryParams.page_size) || 300, // smaller page_size works better for infinite scroll
+  //   total_items: 0,
+  // });
   //for infinite scroll
   const [hasMore, setHasMore] = useState(true); // For InfiniteScroll
   const [isFetching, setIsFetching] = useState(false);
@@ -127,9 +127,9 @@ const DriveContents = () => {
     setHasMore(true);
     setIsLoading(false);
     setNavigationInProgress(true);
-    loadMore(1);
-    console.log(currentPath, page);
-  }, [location.pathname, driveLetter, currentPath]);
+    // loadMore(1);
+    // console.log(currentPath, page);
+  }, [location.pathname]);
 
   const loadMore = async (thePage) => {
     console.log('navprog true', navigationInProgress, isFetching, hasMore);
@@ -193,15 +193,15 @@ const DriveContents = () => {
       }
 
       // Check if we can load more
-      const totalFetchedSoFar =
-        (thePage - 1) * pagination.page_size + data.items.length;
-      const stillHasMore = totalFetchedSoFar < data.pagination.total_items;
+      // const totalFetchedSoFar =
+      //   (thePage - 1) * pagination.page_size + data.items.length;
+      // const stillHasMore = totalFetchedSoFar < data.pagination.total_items;
 
-      setPagination({
-        current_page: data.pagination.current_page,
-        page_size: data.pagination.page_size,
-        total_items: data.pagination.total_items,
-      });
+      // setPagination({
+      //   current_page: data.pagination.current_page,
+      //   page_size: data.pagination.page_size,
+      //   total_items: data.pagination.total_items,
+      // });
       // setHasMore(stillHasMore);
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -221,6 +221,8 @@ const DriveContents = () => {
       console.log('is Fetching');
       console.log(isFetching);
       setPage((prev) => prev + 1);
+    } else {
+      loadMore(1);
     }
   };
 
@@ -250,9 +252,9 @@ const DriveContents = () => {
     });
   };
 
-  const handleThumbnailSizeChange = (e) => {
-    setThumbnailSize(e.target.value);
-  };
+  // const handleThumbnailSizeChange = (e) => {
+  //   setThumbnailSize(e.target.value);
+  // };
 
   const handleSortingSubmit = (e) => {
     e.preventDefault();
@@ -277,16 +279,16 @@ const DriveContents = () => {
     navigate(`${location.pathname}?${newQuery}`);
   };
 
-  const handleThumbnailSizeSubmit = (e) => {
-    e.preventDefault();
-    const params = {
-      ...queryParams,
-      thumbnail_size: thumbnailSize,
-      page: 1, // Reset to first page on thumbnail size change
-    };
-    const newQuery = queryString.stringify(params);
-    navigate(`${location.pathname}?${newQuery}`);
-  };
+  // const handleThumbnailSizeSubmit = (e) => {
+  //   e.preventDefault();
+  //   const params = {
+  //     ...queryParams,
+  //     thumbnail_size: thumbnailSize,
+  //     page: 1, // Reset to first page on thumbnail size change
+  //   };
+  //   const newQuery = queryString.stringify(params);
+  //   navigate(`${location.pathname}?${newQuery}`);
+  // };
 
   // Handle Pagination
   // const handlePageChange = (pageNumber) => {
@@ -452,16 +454,6 @@ const DriveContents = () => {
           >
             <FontAwesomeIcon icon={faArrowUp} />
           </button>
-
-          {/* "Upload Files" Link */}
-          {/* <Link
-              to={`/upload?base_dir=${encodeURIComponent(
-                baseDir
-              )}&path=${encodeURIComponent(currentPath)}`}
-              className={styles.uploadLink}
-            >
-              Upload Files
-            </Link> */}
           <button
             className={styles.option}
             onClick={() =>
@@ -639,8 +631,8 @@ const DriveContents = () => {
               <div className={styles.modalMediaContainer}>
                 {mediaItems[currentMediaIndex].type === 'image' ? (
                   <img
+                    alt="display pic"
                     src={mediaItems[currentMediaIndex].src}
-                    alt="image"
                     className={styles.modalMedia}
                   />
                 ) : (
