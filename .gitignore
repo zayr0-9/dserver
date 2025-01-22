@@ -27,7 +27,6 @@ coverage/
 # React / Next.js
 .next/
 .cache/
-public/
 .vscode/
 
 # TypeScript
