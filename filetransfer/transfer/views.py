@@ -51,11 +51,12 @@ FILE_TYPES = {
     'images': ['.jpg', '.jpeg', '.png', '.bmp', '.tiff'],
     'videos': ['.mp4', '.avi', '.mov', '.webm', '.mkv', '.gif'],
     'documents': ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.txt', '.log', '.txt', '.py', '.js', '.html', '.css',
-                       '.json', '.md', '.java', '.c', '.cpp'],
+                  '.json', '.md', '.java', '.c', '.cpp'],
     'audio': ['.mp3', '.wav', '.aac', '.flac'],
     'archives': ['.zip', '.rar', '.7z', '.tar', '.gz']
 }
 temp_dir = os.path.join(settings.BASE_DIR, 'temp_thumbnails')
+
 
 @require_POST
 def api_login(request):
@@ -87,8 +88,8 @@ def file_upload(request, base_dir, relative_path):
     """
     Handle file uploads to the specified directory.
     """
-    logger.debug(
-        f"Received file upload request: base_dir={base_dir}, relative_path={relative_path}")
+    # logger.debug(
+    #     f"Received file upload request: base_dir={base_dir}, relative_path={relative_path}")
 
     # Sanitize base_dir and relative_path to prevent directory traversal
     base_dir = os.path.normpath(base_dir)
@@ -111,7 +112,7 @@ def file_upload(request, base_dir, relative_path):
     else:  # Unix/Linux
         upload_dir = os.path.join(base_dir, relative_path)
 
-    logger.debug(f"Constructed upload directory path: {upload_dir}")
+    # logger.debug(f"Constructed upload directory path: {upload_dir}")
 
     # Ensure the upload directory exists
     try:
@@ -149,7 +150,7 @@ def file_upload(request, base_dir, relative_path):
 
         # Construct the full file path
         file_path = os.path.join(upload_dir, filename)
-        logger.debug(f"Uploading file to: {file_path}")
+        # logger.debug(f"Uploading file to: {file_path}")
 
         try:
             with open(file_path, 'wb+') as destination:
@@ -175,6 +176,7 @@ def file_upload(request, base_dir, relative_path):
             return JsonResponse({'error': f'Error uploading file: {filename}'}, status=500)
 
     return JsonResponse({'success': True, 'uploaded_files': uploaded_files}, status=200)
+
 
 def search_files(request):
     """
@@ -267,7 +269,8 @@ def search_files(request):
 #         })
 
 #     return JsonResponse({'results': final_results}, status=200)
-# need to fix 
+# need to fix
+
 
 def drives(request):
     drives = get_drives()
@@ -275,8 +278,6 @@ def drives(request):
         'drives': drives,
     }
     return render(request, 'drivelist.html', context)
-
-
 
 
 @csrf_exempt  # Use with caution; consider implementing proper CSRF handling
@@ -311,7 +312,7 @@ def get_drives():
     print("Fetching drives")
     drives = []
     bitmask = windll.kernel32.GetLogicalDrives()
-    
+
     # Drive types constants
     DRIVE_UNKNOWN = 0
     DRIVE_NO_ROOT_DIR = 1
@@ -450,7 +451,8 @@ def get_request_params(request):
         'show_hidden_files': False
     }
 
-def get_directory_items(full_path, show_hidden_files, path):
+
+def get_directory_items1(full_path, show_hidden_files, path):
     items = []
     with os.scandir(full_path) as entries:
         for entry in entries:
@@ -465,10 +467,10 @@ def get_directory_items(full_path, show_hidden_files, path):
             if file_ext in FILE_TYPES['videos']:
                 is_video = True
             else:
-                is_video=False
+                is_video = False
             if file_ext in FILE_TYPES['documents']:
                 is_text_file = True
-            else: 
+            else:
                 is_text_file = False
 
             items.append({
@@ -481,9 +483,55 @@ def get_directory_items(full_path, show_hidden_files, path):
                 'relative_path': relative_path,
                 'thumb_path': entry.path,
                 'is_video': is_video,
-                'is_text' : is_text_file
+                'is_text': is_text_file
             })
     return items
+
+
+def get_directory_items(full_path, show_hidden_files, path, page, page_size):
+    start = (page - 1) * page_size
+    end = start + page_size
+    count = 0
+
+    with os.scandir(full_path) as entries:
+        for entry in entries:
+            if not show_hidden_files and entry.name.startswith('.'):
+                continue
+            if count < start:
+                count += 1
+                continue
+            if count >= end:
+                break
+            try:
+                stat = entry.stat(follow_symlinks=False)
+            except FileNotFoundError:
+                continue
+            relative_path = os.path.join(path, entry.name).replace('\\', '/')
+            file_ext = os.path.splitext(entry.name)[1].lower()
+
+            if file_ext in FILE_TYPES['videos']:
+                is_video = True
+            else:
+                is_video = False
+            if file_ext in FILE_TYPES['documents']:
+                is_text_file = True
+            else:
+                is_text_file = False
+
+            yield {
+                'name': entry.name,
+                'path': path,
+                'is_dir': entry.is_dir(follow_symlinks=False),
+                'size': stat.st_size if not entry.is_dir() else None,
+                'modified': datetime.datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                'created': datetime.datetime.fromtimestamp(stat.st_ctime).isoformat(),
+                'relative_path': relative_path,
+                'thumb_path': entry.path,
+                'is_video': is_video,
+                'is_text': is_text_file
+            }
+            count += 1
+
 
 def generate_thumbnail(item):
     # Thumbnail generation logic for images and videos
@@ -493,7 +541,8 @@ def generate_thumbnail(item):
 
     try:
         file_identifier = f"{item['thumb_path']}_{thumbnail_size}"
-        thumbnail_hash = hashlib.md5(file_identifier.encode('utf-8')).hexdigest()
+        thumbnail_hash = hashlib.md5(
+            file_identifier.encode('utf-8')).hexdigest()
         thumbnail_ext = '.png' if file_ext == '.png' else '.jpg'
         thumbnail_filename = f"thumb_{thumbnail_hash}{thumbnail_ext}"
         thumbnail_path = os.path.join(temp_dir, thumbnail_filename)
@@ -503,7 +552,7 @@ def generate_thumbnail(item):
             if os.path.exists(thumbnail_path):
                 item['thumbnail'] = thumbnail_filename  # Skip generation
                 return
-            #generate thumbnail for image
+            # generate thumbnail for image
             with Image.open(item['thumb_path']) as image:
                 image.thumbnail((thumbnail_size, thumbnail_size))
                 image_format = 'PNG' if image.mode == 'RGBA' else 'JPEG'
@@ -513,13 +562,15 @@ def generate_thumbnail(item):
 
         elif not item['is_dir'] and file_ext in FILE_TYPES['videos']:
             if os.path.exists(thumbnail_path):
-                item['thumbnail'] = thumbnail_filename  # Set generated thumbnail
+                # Set generated thumbnail
+                item['thumbnail'] = thumbnail_filename
                 return
             # Thumbnail generation for videos
             generate_video_thumbnail(item)
 
     except Exception as e:
         logger.error(f"Failed to create thumbnail for {item['name']}: {e}")
+
 
 def get_ffmpeg_hwaccels():
     """
@@ -528,7 +579,8 @@ def get_ffmpeg_hwaccels():
     """
     try:
         command = ['ffmpeg', '-hwaccels']
-        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
+        result = subprocess.run(
+            command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
         # The first line is typically "Hardware acceleration methods:"
         # Subsequent lines are the available hwaccels
         lines = result.stdout.strip().split('\n')
@@ -538,14 +590,16 @@ def get_ffmpeg_hwaccels():
         logger.warning(f"Failed to query FFmpeg hardware accelerations: {e}")
         return []
     except Exception as e:
-        logger.error(f"Unexpected error fetching FFmpeg hardware accelerations: {e}")
+        logger.error(
+            f"Unexpected error fetching FFmpeg hardware accelerations: {e}")
         return []
+
 
 def choose_hwaccel_method(preferred_order=None):
     """
     Return the first available hardware acceleration method based on a preferred
     order, or None if none is available.
-    
+
     Example usage:
       hwaccel = choose_hwaccel_method(['cuda', 'vaapi', 'qsv', 'dxva2', 'videotoolbox'])
       if hwaccel:
@@ -561,9 +615,10 @@ def choose_hwaccel_method(preferred_order=None):
 
     # If the caller didn't specify a preferred order, let's define a generic default
     if preferred_order is None:
-        # Common possibilities: 'cuda' (NVIDIA), 'vaapi' (Intel/Linux), 'qsv' (Intel Quick Sync), 
+        # Common possibilities: 'cuda' (NVIDIA), 'vaapi' (Intel/Linux), 'qsv' (Intel Quick Sync),
         # 'videotoolbox' (macOS), 'dxva2' (Windows), 'vdpau' (older Linux)
-        preferred_order = ['cuda', 'vaapi', 'qsv', 'videotoolbox', 'dxva2', 'vdpau']
+        preferred_order = ['cuda', 'vaapi', 'qsv',
+                           'videotoolbox', 'dxva2', 'vdpau']
 
     for hw in preferred_order:
         if hw in hwaccels:
@@ -572,6 +627,7 @@ def choose_hwaccel_method(preferred_order=None):
 
     # logger.info("No preferred hardware acceleration found. Falling back to software.")
     return None
+
 
 def generate_video_thumbnail(item, thumbnail_size=100):
     file_identifier = f"{item['thumb_path']}_{thumbnail_size}"
@@ -585,7 +641,7 @@ def generate_video_thumbnail(item, thumbnail_size=100):
 
     # Choose the hardware acceleration method if available
     hwaccel_method = choose_hwaccel_method()
-    
+
     # Base command (shared arguments)
     base_args = [
         'ffmpeg',
@@ -599,35 +655,42 @@ def generate_video_thumbnail(item, thumbnail_size=100):
 
     if hwaccel_method:
         # Insert -hwaccel <method> right after the 'ffmpeg' and '-y'
-        hwaccel_args = base_args[:2] + ['-hwaccel', hwaccel_method] + base_args[2:]
+        hwaccel_args = base_args[:2] + \
+            ['-hwaccel', hwaccel_method] + base_args[2:]
     else:
         # No hardware acceleration; just use base_args
         hwaccel_args = base_args
 
     # 1) Try hardware (or direct) command
     try:
-        result = subprocess.run(hwaccel_args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+        result = subprocess.run(
+            hwaccel_args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
         if result.returncode != 0:
             # logger.warning(f"Hardware-accelerated FFmpeg call failed with code {result.returncode}. Falling back to software.")
             # 2) Fallback to software-only if we tried hardware
             if hwaccel_method:
                 # Re-run base_args without hwaccel in case that's the problem
-                sw_result = subprocess.run(base_args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+                sw_result = subprocess.run(
+                    base_args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
                 if sw_result.returncode != 0:
-                    logger.error(f"Software fallback also failed with code {sw_result.returncode}")
+                    logger.error(
+                        f"Software fallback also failed with code {sw_result.returncode}")
                     return
         # If no hardware method was chosen, we already used base_args
 
     except Exception as e:
         # logger.warning(f"Exception while running FFmpeg with hardware accel: {e}. Falling back to software.")
-        sw_result = subprocess.run(base_args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+        sw_result = subprocess.run(
+            base_args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
         if sw_result.returncode != 0:
-            logger.error(f"Software fallback also failed with code {sw_result.returncode}")
+            logger.error(
+                f"Software fallback also failed with code {sw_result.returncode}")
             return
 
     # Finally, if the thumbnail was created, update item
     if os.path.exists(thumbnail_path):
         item['thumbnail'] = thumbnail_filename
+
 
 def process_thumbnails(items):
     try:
@@ -662,37 +725,43 @@ def filter_items(items, params):
 
         # Filter by date
         if params['date_from']:
-            date_from_dt = datetime.datetime.strptime(params['date_from'], '%Y-%m-%d')
+            date_from_dt = datetime.datetime.strptime(
+                params['date_from'], '%Y-%m-%d')
             item_modified_dt = datetime.datetime.fromisoformat(
                 item['modified'])
             if item_modified_dt < date_from_dt:
                 continue
         if params['date_to']:
-            date_to_dt = datetime.datetime.strptime(params['date_to'], '%Y-%m-%d')
+            date_to_dt = datetime.datetime.strptime(
+                params['date_to'], '%Y-%m-%d')
             item_modified_dt = datetime.datetime.fromisoformat(
                 item['modified'])
             if item_modified_dt > date_to_dt:
                 continue
         filtered_items.append(item)
-    return(filtered_items)  # Implement filters for type, size, and dates
+    return (filtered_items)  # Implement filters for type, size, and dates
+
 
 def sort_items(items, sort_by, sort_dir):
     # Sort items by key and order
     reverse = (sort_dir == 'desc')
     return sorted(items, key=lambda x: x.get(sort_by, ""), reverse=reverse)
 
+
 def paginate_items(items, page, page_size):
     start_index = (page - 1) * page_size
     end_index = start_index + page_size
     return items[start_index:end_index], len(items)
 
+
 def file_list_api(request, drive_letter):
     base_dir = unquote(drive_letter)
     if not base_dir:
         return JsonResponse({'error': 'Base directory not specified'}, status=400)
-    
+
     params = get_request_params(request)
-    full_path = os.path.normpath(os.path.join(f"{base_dir}:\\", params['path']))
+    full_path = os.path.normpath(
+        os.path.join(f"{base_dir}:\\", params['path']))
 
     if not os.path.exists(full_path):
         raise Http404("Directory does not exist")
@@ -700,18 +769,28 @@ def file_list_api(request, drive_letter):
     if not full_path.startswith(os.path.normpath(f"{base_dir}:\\")):
         raise Http404("Access denied")
 
-    items = get_directory_items(full_path, params['show_hidden_files'], params['path'])
+    # items = get_directory_items(full_path, params['show_hidden_files'], params['path'])
+    items_generator = get_directory_items(
+        full_path,
+        params['show_hidden_files'],
+        params['path'],
+        params['page'],
+        params['page_size']
+    )
+    items = list(items_generator)
     process_thumbnails(items)
     filtered_items = filter_items(items, params)
-    sorted_items = sort_items(filtered_items, params['sort_by'], params['sort_dir'])
-    paginated_items, total_items = paginate_items(sorted_items, params['page'], params['page_size'])
-
+    sorted_items = sort_items(
+        filtered_items, params['sort_by'], params['sort_dir'])
+    # paginated_items, total_items = paginate_items(
+    #     sorted_items, params['page'], params['page_size'])
+    # logger.debug(paginated_items)
     return JsonResponse({
         'items': sorted_items,
         'pagination': {
             'current_page': params['page'],
             'page_size': params['page_size'],
-            'total_items': total_items
+            # 'total_items': total_items
         }
     })
 
@@ -817,7 +896,7 @@ def gpu_available():
 # @require_GET
 @require_GET
 def stream_hls(request, drive_letter, path):
-    logger.debug(f"Entering Stream HLS {drive_letter}, {path}")
+    # logger.debug(f"Entering Stream HLS {drive_letter}, {path}")
     base_dir = drive_letter + ':\\' if os.name == 'nt' else '/' + drive_letter
     relative_path = unquote(path)
     full_path = os.path.normpath(os.path.join(base_dir, relative_path))
@@ -836,7 +915,7 @@ def stream_hls(request, drive_letter, path):
     os.makedirs(hls_output_dir, exist_ok=True)
 
     hls_playlist = os.path.normpath(os.path.join(hls_output_dir, 'index.m3u8'))
-    logger.debug(f"Generating HLS chunks at {hls_output_dir}, {hls_playlist}")
+    # logger.debug(f"Generating HLS chunks at {hls_output_dir}, {hls_playlist}")
 
     ffmpeg_command = [
         'ffmpeg',
@@ -891,7 +970,7 @@ def stream_hls(request, drive_letter, path):
         'playlist_url': playlist_url,
         'video_filename': video_identifier,
     }
-    logger.debug(f"Returning playlist URL: {playlist_url}")
+    # logger.debug(f"Returning playlist URL: {playlist_url}")
     return JsonResponse(response_data)
 
 
@@ -935,20 +1014,21 @@ def admin_pin_entry(request):
             return HttpResponse("Incorrect PIN. Access denied.")
     return render(request, 'enter_admin_pin.html')
 
+
 def admin_console_api(request):
     path = request.GET.get('path', '')
     full_path = os.path.normpath(os.path.join(settings.BASE_DIR, path))
-    
+
     if not os.path.exists(full_path):
         return JsonResponse({'error': 'Directory does not exist'}, status=404)
-    
+
     items = []
     for item in os.listdir(full_path):
         item_path = os.path.join(full_path, item)
         relative_path = os.path.relpath(item_path, settings.BASE_DIR)
         is_dir = os.path.isdir(item_path)
         is_public = Directory.objects.filter(path=item_path).exists()
-        
+
         item_info = {
             'name': item,
             'relative_path': relative_path,
@@ -958,8 +1038,9 @@ def admin_console_api(request):
             'is_public': is_public
         }
         items.append(item_info)
-    
+
     return JsonResponse({'items': items, 'current_path': path})
+
 
 def admin_console(request):
     # Get the directory path from the query parameters
@@ -1046,11 +1127,14 @@ def toggle_visibility(request):
 
 # react stuff
 
+
 SETUP_JSON_PATH = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "../../setup.json")
 )
 
-@csrf_exempt  # Allow this endpoint to be called without CSRF token for simplicity (adjust for production)
+
+# Allow this endpoint to be called without CSRF token for simplicity (adjust for production)
+@csrf_exempt
 def update_drive_letter(request):
     if request.method != "POST":
         return JsonResponse({"error": "Invalid request method. Use POST."}, status=405)

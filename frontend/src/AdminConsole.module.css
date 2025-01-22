@@ -1,62 +1,82 @@
-.body {
-    font-family: "Arial", sans-serif;
-    background-color: #f4f4f9;
-    margin: 0;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
+/* Drives Container */
+.drives {
+  display: flex;
+  align-items: center; /* Center vertically */
+  justify-content: center; /* Center horizontally */
+  min-height: 100vh; /* Full viewport height */
+  background-color: #1d1d1d;
+}
+
+/* Body styling */
+.drives .body {
+  text-align: center; /* Center content inside */
+}
+
+/* Header */
+.drives h1 {
+  font-size: 2.5em;
+  margin-bottom: 20px;
+  color: #fff;
+}
+
+/* Unordered list styling */
+.drives ul {
+  list-style: none;
+  padding: 0;
+  margin: 0; /* Reset margins */
+}
+
+/* List items */
+.drives li {
+  margin: 15px 0; /* Add spacing between items */
+}
+
+/* Links */
+.drives a {
+  font-size: 2em;
+  padding: 15px 25px;
+  background-color: #555;
+  color: #fff;
+  text-decoration: none;
+  border-radius: 10px;
+  transition: background-color 0.3s, transform 0.2s;
+  display: inline-block;
+  text-align: center;
+}
+
+/* Hover and focus states */
+.drives a:hover,
+.drives a:focus {
+  background-color: #777;
+  transform: scale(1.05);
+}
+
+.container {
+  height: 100%;
+  overflow-y: true;
+}
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+  .drives a {
+    font-size: 1.5em; /* Adjust font size for smaller screens */
+    padding: 10px 20px;
   }
-  
-  .topBar {
-    background-color: #333;
-    color: white;
-    padding: 15px 20px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    width: 100vw;
-  }
-  
-  .topBar h1 {
-    font-size: 1.8rem;
-  }
-  
-  .container {
-    width: 100%;
-    max-width: 1200px;
-    padding: 20px;
-    box-sizing: border-box;
-  }
-  
-  h2 {
-    font-size: 1.6rem;
-    margin-bottom: 20px;
-  }
-  
-  .table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 20px;
-    background-color: white;
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-    font-size: 1rem;
-  }
-  
-  th,
+}
+
+.container .adminConsoleTable th {
+  background-color: #f4f4f9;
+  font-weight: 600;
+}
+  .container .adminConsoleTable th,
   td {
     padding: 15px;
     text-align: left;
-    border-bottom: 1px solid #ddd;
+    /* border-bottom: 1px solid #ddd; */
   }
+
   
-  th {
-    background-color: #f4f4f9;
-    font-weight: 600;
-  }
-  
-  tr:hover {
-    background-color: #f1f1f1;
+  .container .adminConsoleTable tr:hover {
+    background-color: #881919;
   }
   
   .statusButton {
@@ -102,11 +122,11 @@
       font-size: 1.5rem;
     }
   
-    .table {
+    .container .adminConsoleTable {
       font-size: 0.9rem;
     }
   
-    th,
+    .container .adminConsoleTable th,
     td {
       padding: 12px;
     }
@@ -128,7 +148,7 @@
       font-size: 1.4rem;
     }
   
-    .table,
+    .container .adminConsoleTable,
     th,
     td {
       font-size: 0.85rem;

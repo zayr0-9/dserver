@@ -25,7 +25,7 @@
   /* Top Bar */
   .topBar {
     display: flexbox;
-    justify-content: space-between;
+    justify-content: left;
     align-items: center;
     margin-bottom: 20px;
     /* Optional: make the top bar sticky */
@@ -38,26 +38,41 @@
   
 .topBar .topRow {
     display: flex;
-    justify-content: space-between;
+    justify-content: left;
     align-items: center;
     width: 100%; /* Ensure it spans the full width */
 }
 
-.topBar .searchBar {
-    /* margin-top: 10px; Add spacing between the search bar and top row */
-    text-align: left; /* Align the search bar to the right */
-    background-color: #1a1a1a;
-    /* border: 1px solid #555; */
-    /* padding: 15px; */
-    border-radius: 5px;
-    position: absolute;
-    /* top: 50px;
-    right: 10px; */
-    z-index: 1000;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+.topBar .secondRow {
+  display: flex; /* Keep them side by side */
+  justify-content: space-between; /* Space between the search bar and the filter button */
+  align-items: center;
+  gap: 10px; /* Add some spacing between the elements */
 }
+
+.topBar .searchBar {
+  flex-grow: 1; /* Allow the search bar to take available space */
+  margin-right: 10px; /* Add spacing to the right of the search bar */
+  text-align: left; /* Align the search bar content to the left */
+  background-color: #1a1a1a;
+  border-radius: 5px;
+  position: relative;
+  z-index: 1000;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+}
+
+.topBar .advancedFilters {
+  flex-shrink: 0; /* Prevent the filter button from shrinking */
+  margin-left: 10px; /* Add spacing to the left of the filter button */
+}
+
   .topBar h1 {
     font-size: 2em;
+    margin : 5px
+  }
+
+  .driveContent h2 {
+    font-size: 1.5em;
   }
   
   .topBar .uploadLink {
@@ -65,15 +80,19 @@
     /* font-size: 1.2em; */
   }
   .topBar .option {
-    padding: 10px 20px;
-    background-color: #007bff;
-    color: #fff;
+    padding: 5px 15px;
+    background-color: #32669e;
+    color: #dadada;
     border: none;
     border-radius: 5px;
     cursor: pointer;
     font-size: 1.5em;
+    margin: 5px;
   }
-  
+  .infiniteScrollContainer {
+    height: 100%;
+    overflow-y: auto;
+  }
   .topBar .option:hover {
     background-color: #0056b3;
   }
@@ -120,39 +139,58 @@
     background-color: #218838;
   }
   
-  /* Table Styles */
-  table {
+  /* .infiniteTable Styles */
+  .infiniteTable {
     width: 100%;
     border-collapse: collapse;
     margin-bottom: 20px;
-    /* table-layout: fixed; Ensure consistent column widths */
+    /* .infiniteTable-layout: fixed; Ensure consistent column widths */
     word-wrap: break-word; /* Prevent long text from overflowing */
     background-color: #1d1d1d;
     border-collapse: collapse;
+    table-layout: fixed;
+    border-bottom: 0.5px;
+  }
+  .infiniteTable tbody tr:nth-child(odd) {
+    background-color: #232323; /* Dark grey for odd rows */
+  }
+  /* Ensure hover works regardless of alternating colors */
+  .infiniteTable tbody tr:hover {
+    background-color: #bbbbbb; /* Your desired hover color */
+    color: #212121; /* Ensure text remains readable */
+  }
+  .infiniteTable tbody tr:hover {
+    background-color: #333; /* Your desired hover color */
+    color: #fff; /* Ensure text remains readable */
   }
   
-  tr {
+  .infiniteTable tr {
     width:100px
   }
-  th, td {
-    border: 0.5px solid #434343;
+  .infiniteTable th {
+    font-size: 1em;
+    background-color: #1d1d1d;
+  }
+  .infiniteTable th, td {
+    /* border: 0.5px solid #434343; */
     padding: 5px;
     text-align: left;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: normal; /* Prevent text from wrapping */
+    font-size: 1.3em;
   }
   
-  th:first-of-type {
+  .infiniteTable th:first-of-type {
     border-top-left-radius: 10px;
   }
-  th:last-of-type {
+  .infiniteTable th:last-of-type {
     border-top-right-radius: 10px;
   }
-  tr:last-of-type td:first-of-type {
+  .infiniteTable tr:last-of-type td:first-of-type {
     border-bottom-left-radius: 10px;
   }
-  tr:last-of-type td:last-of-type {
+  .infiniteTable tr:last-of-type td:last-of-type {
     border-bottom-right-radius: 10px;
   }
   .text {
@@ -161,7 +199,7 @@
   .text .a {
     text-decoration: underline;
   }
-  td a {
+  .infiniteTable td a {
     font-size: 1em;
     /* padding: 15px 25px; */
     /* background-color: #555; */
@@ -173,9 +211,7 @@
     width: 100%; /* Make it full-width for touch targets */
     text-align: left;
   }
-  th {
-    background-color: #1d1d1d;
-  }
+  
   
   /* a {
     padding: 1px;
@@ -202,20 +238,23 @@
   }
   
   .actionButtons a.download {
-    background-color: #28a745;
+    background-color: #202020;
+    color: #bbb;
   }
   
   
   .actionButtons a.stream {
-    background-color: #ffc107;
+    background-color: #658d57;
   }
   
   .actionButtons button.delete {
     padding: 5px 10px;
     text-decoration: none;
-    background-color: #b22828;
+    background-color: #863232;
     border-radius: 3px;
+    color: #bbbbbb;
     border-color: transparent;
+    cursor: pointer; 
   }
 
   .actionButtons button:hover {
@@ -223,6 +262,7 @@
   }
   .actionButtons a:hover {
     opacity: 0.8;
+    cursor: pointer; 
   }
   
   /* Loading Indicator */
@@ -520,7 +560,3 @@
   background-color: #444;
 }
 
-table tbody tr:hover {
-  background-color: #333; /* Your desired hover color */
-  color: #fff; /* Ensure text remains readable */
-}

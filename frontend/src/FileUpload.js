@@ -1,19 +1,19 @@
 // FileUpload.js
 
-import React, { useState, useEffect, useRef } from "react";
-import "./FileUpload.css";
-import io from "socket.io-client";
-import { useLocation, useNavigate } from "react-router-dom";
-import axios from "axios";
+import React, { useState, useEffect, useRef } from 'react';
+// import "./FileUpload.css";
+import io from 'socket.io-client';
+import { useLocation, useNavigate } from 'react-router-dom';
+import axios from 'axios';
 
 const FileUpload = () => {
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
-  const baseDir = queryParams.get("base_dir") || "C"; // Default to "C" if not provided
-  const rawPath = queryParams.get("path") || ""; // Default to "" if not provided
+  const baseDir = queryParams.get('base_dir') || 'C'; // Default to "C" if not provided
+  const rawPath = queryParams.get('path') || ''; // Default to "" if not provided
 
   // Sanitize currentPath by removing leading and trailing slashes
-  const currentPath = rawPath.replace(/^\/+|\/+$/g, "");
+  const currentPath = rawPath.replace(/^\/+|\/+$/g, '');
   const navigate = useNavigate();
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [uploading, setUploading] = useState(false);
@@ -22,7 +22,7 @@ const FileUpload = () => {
   const [totalBytes, setTotalBytes] = useState(0);
   const [uploadedBytes, setUploadedBytes] = useState(0);
   const [progressPercentage, setProgressPercentage] = useState(0);
-  const [notification, setNotification] = useState("");
+  const [notification, setNotification] = useState('');
 
   const uploadedFilesRef = useRef(0);
   const totalFilesRef = useRef(0);
@@ -30,17 +30,17 @@ const FileUpload = () => {
   const uploadedBytesRef = useRef(0);
 
   // Initialize Socket.IO client
-  const socket = io("http://192.168.0.82"); // Update to your Socket.IO server URL
+  const socket = io('http://192.168.0.82'); // Update to your Socket.IO server URL
 
   useEffect(() => {
     // Listen for notifications from the Node.js server
-    socket.on("notification", (message) => {
+    socket.on('notification', (message) => {
       alert(message); // Display the success message to the user
       setNotification(message);
     });
 
     // Listen for file upload progress (optional)
-    socket.on("progress", (data) => {
+    socket.on('progress', (data) => {
       console.log(`Upload progress: ${data.percentage}%`);
       // You can integrate this with your progress bar if needed
     });
@@ -53,14 +53,14 @@ const FileUpload = () => {
 
   // Utility function to get CSRF token from cookies
   const getCSRFToken = () => {
-    const name = "csrftoken";
-    const cookies = document.cookie.split(";").map((cookie) => cookie.trim());
+    const name = 'csrftoken';
+    const cookies = document.cookie.split(';').map((cookie) => cookie.trim());
     for (let cookie of cookies) {
-      if (cookie.startsWith(name + "=")) {
+      if (cookie.startsWith(name + '=')) {
         return decodeURIComponent(cookie.substring(name.length + 1));
       }
     }
-    return "";
+    return '';
   };
 
   const handleFileChange = (e) => {
@@ -81,7 +81,7 @@ const FileUpload = () => {
   const startUpload = async (event) => {
     event.preventDefault(); // Prevent form submission
 
-    const files = document.getElementById("fileInput").files;
+    const files = document.getElementById('fileInput').files;
 
     // Reset refs
     uploadedFilesRef.current = 0;
@@ -101,12 +101,12 @@ const FileUpload = () => {
     setUploadedFiles(0);
     setUploadedBytes(0);
     setProgressPercentage(0);
-    setNotification("");
+    setNotification('');
 
     if (files.length > 0) {
-      document.getElementById("progressContainer").style.display = "block";
+      document.getElementById('progressContainer').style.display = 'block';
       document.getElementById(
-        "progressText"
+        'progressText'
       ).textContent = `Uploading 0 of ${files.length} files`;
 
       uploadFiles(files); // Start the upload process
@@ -120,7 +120,7 @@ const FileUpload = () => {
 
     Array.from(files).forEach((file, index) => {
       const formData = new FormData();
-      formData.append("files", file);
+      formData.append('files', file);
 
       const url = currentPath
         ? `/api/upload/${baseDir}/${encodeURIComponent(currentPath)}/`
@@ -129,8 +129,8 @@ const FileUpload = () => {
       axios
         .post(url, formData, {
           headers: {
-            "X-CSRFToken": getCSRFToken(),
-            "Content-Type": "multipart/form-data",
+            'X-CSRFToken': getCSRFToken(),
+            'Content-Type': 'multipart/form-data',
           },
           withCredentials: true,
           onUploadProgress: (progressEvent) => {
@@ -148,8 +148,8 @@ const FileUpload = () => {
             const overallProgress =
               (uploadedBytes / totalBytesRef.current) * 100;
 
-            const progressBar = document.getElementById("progressBarInner");
-            const progressText = document.getElementById("progressText");
+            const progressBar = document.getElementById('progressBarInner');
+            const progressText = document.getElementById('progressText');
             progressBar.style.width = `${overallProgress}%`;
             progressText.textContent = `Uploading ${
               uploadedFilesRef.current
@@ -184,8 +184,8 @@ const FileUpload = () => {
   };
 
   const closeProgressBar = () => {
-    document.getElementById("progressContainer").style.display = "none";
-    document.getElementById("progressText").textContent = "Upload complete!";
+    document.getElementById('progressContainer').style.display = 'none';
+    document.getElementById('progressText').textContent = 'Upload complete!';
   };
 
   return (
@@ -200,7 +200,7 @@ const FileUpload = () => {
           onChange={handleFileChange}
         />
         <button type="submit" disabled={uploading}>
-          {uploading ? "Uploading..." : "Upload"}
+          {uploading ? 'Uploading...' : 'Upload'}
         </button>
       </form>
       <a
@@ -210,14 +210,14 @@ const FileUpload = () => {
           navigate(`/drive/${baseDir}/${encodeURIComponent(rawPath)}`);
         }}
       >
-        View Upload{" "}
+        View Upload{' '}
       </a>
       {/* Example link, adjust as needed */}
       {/* Progress bar */}
       <div
         className="progress-bar"
         id="progressContainer"
-        style={{ display: "none" }}
+        style={{ display: 'none' }}
       >
         <div id="progressBarInner" className="progress-bar-inner"></div>
       </div>

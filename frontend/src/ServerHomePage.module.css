@@ -1,0 +1,64 @@
+/* Main homepage container */
+.homepage {
+  display: flex;
+  align-items: center; /* Center vertically */
+  justify-content: center; /* Center horizontally */
+  min-height: 100vh; /* Full viewport height */
+  background-color: #1d1d1d;
+  color: white;
+}
+
+/* Homepage body container */
+.homepageBody {
+  text-align: center;
+}
+
+/* Title Styling */
+.homepageTitle {
+  font-size: 2.5em;
+  margin-bottom: 30px;
+}
+
+/* Options container */
+.homepageOptions {
+  display: flex;
+  flex-direction: column;
+  gap: 20px; /* Spacing between buttons */
+}
+
+/* Option buttons */
+.option {
+  padding: 15px 30px;
+  background-color: #555;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 1.2em;
+  cursor: pointer;
+  transition: background-color 0.3s, transform 0.2s;
+}
+
+/* Hover and focus states */
+.option:hover {
+  background-color: #777;
+  transform: scale(1.05);
+}
+
+/* Ensure links inside buttons inherit the button style */
+.option a {
+  text-decoration: none;
+  color: inherit;
+  display: block; /* Ensure full clickable area */
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+  .homepage-title {
+    font-size: 2em;
+  }
+
+  .option {
+    font-size: 1em;
+    padding: 10px 20px;
+  }
+}

@@ -1,0 +1,46 @@
+name: Build React and Create Release
+
+on:
+  push:
+    branches: ['main'] # Trigger on pushes to main
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write # Allow creating releases
+
+    steps:
+      # Checkout code
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Build React App
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install React dependencies
+        working-directory: ./frontend
+        run: npm ci
+
+      - name: Build React App
+        working-directory: ./frontend
+        run: npm run build
+
+      # Create ZIP of the entire project (excluding .git)
+      - name: Create Release ZIP
+        run: |
+          # Install zip utility (if needed)
+          sudo apt-get install zip -y
+          # Create ZIP (exclude .git and .github folders)
+          zip -r dserver.zip . -x "*.git*" -x ".github/*"
+
+      # Upload to GitHub Releases
+      - name: Upload Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dserver.zip # Include the ZIP
+          generate_release_notes: true # Auto-generate release notes

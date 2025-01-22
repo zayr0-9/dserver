@@ -1,51 +1,53 @@
 // DriveContents.js
 
-import React, { useEffect, useState, useRef } from "react";
-import { useParams, useNavigate, useLocation, Link } from "react-router-dom";
-import queryString from "query-string";
-import styles from "./DriveContent.module.css";
-import SearchBar from "./FileSearch"; // Import your SearchBar here
-
-import axios from "axios";
+import React, { useEffect, useState, useRef } from 'react';
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
+import queryString from 'query-string';
+import styles from './DriveContent.module.css';
+import SearchBar from './FileSearch'; // Import your SearchBar here
+import InfiniteTable from './InfiniteTable'; // our new custom component
+import axios from 'axios';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faArrowUp, faHome, faUpload } from '@fortawesome/free-solid-svg-icons';
 
 function getParentPath(path) {
   // Convert backslashes to forward slashes
-  let normalized = path.replace(/\\/g, "/");
+  let normalized = path.replace(/\\/g, '/');
   // Remove trailing slash
-  normalized = normalized.replace(/\/+$/, "");
+  normalized = normalized.replace(/\/+$/, '');
   // Split
-  const parts = normalized.split("/");
+  const parts = normalized.split('/');
   if (parts.length > 1) {
     parts.pop();
-    return parts.join("/");
+    return parts.join('/');
   }
-  return ""; // means root
+  return ''; // means root
 }
 
 const DriveContents = () => {
-  const { driveLetter, "*": pathParam } = useParams();
+  const { driveLetter, '*': pathParam } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
 
   // Parse the current path from the URL
-  const currentPath = pathParam || "";
+  const currentPath = pathParam || '';
 
   // Parse query parameters from the URL
   const queryParams = queryString.parse(location.search);
-
+  const [allItems, setAllItems] = useState([]);
   // State variables
   const [items, setItems] = useState([]);
-  const [baseDir, setBaseDir] = useState("");
+  const [baseDir, setBaseDir] = useState('');
   const [thumbnailSize, setThumbnailSize] = useState(
-    queryParams.thumbnail_size || "100"
+    queryParams.thumbnail_size || '100'
   );
   const [isPrivate, setIsPrivate] = useState(false);
-  const [pin, setPin] = useState("");
-  const [pinError, setPinError] = useState("");
-  const [errorMessage, setErrorMessage] = useState(""); // For displaying fetch errors
+  const [pin, setPin] = useState('');
+  const [pinError, setPinError] = useState('');
+  const [errorMessage, setErrorMessage] = useState(''); // For displaying fetch errors
   const [isDropdownVisible, setIsDropdownVisible] = useState(false);
   const dropdownRef = useRef(null);
-  const isRoot = currentPath === "";
+  const isRoot = currentPath === '';
   const toggleDropdown = () => {
     setIsDropdownVisible(!isDropdownVisible);
   };
@@ -53,6 +55,7 @@ const DriveContents = () => {
     const parentPath = getParentPath(currentPath);
     navigate(`/drive/${driveLetter}/${encodeURIComponent(parentPath)}`);
   };
+
   // Close the dropdown when clicking outside of it
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -62,36 +65,39 @@ const DriveContents = () => {
     };
 
     // Add event listener to document
-    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener('mousedown', handleClickOutside);
 
     // Cleanup the event listener when the component is unmounted
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
 
   // Sorting and filtering state
   const [sorting, setSorting] = useState({
-    sort_by: queryParams.sort_by || "name",
-    sort_dir: queryParams.sort_dir || "asc",
+    sort_by: queryParams.sort_by || 'name',
+    sort_dir: queryParams.sort_dir || 'asc',
   });
 
   const [filtering, setFiltering] = useState({
-    filter_type: queryParams.filter_type || "all",
-    file_type: queryParams.file_type || "all",
-    size_min: queryParams.size_min || "",
-    size_max: queryParams.size_max || "",
-    date_from: queryParams.date_from || "",
-    date_to: queryParams.date_to || "",
+    filter_type: queryParams.filter_type || 'all',
+    file_type: queryParams.file_type || 'all',
+    size_min: queryParams.size_min || '',
+    size_max: queryParams.size_max || '',
+    date_from: queryParams.date_from || '',
+    date_to: queryParams.date_to || '',
   });
 
   // Pagination state
   const [pagination, setPagination] = useState({
-    current_page: parseInt(queryParams.page) || 1,
-    page_size: parseInt(queryParams.page_size) || 100,
-    total_pages: 1,
+    current_page: 0,
+    page_size: parseInt(queryParams.page_size) || 300, // smaller page_size works better for infinite scroll
     total_items: 0,
   });
+  //for infinite scroll
+  const [hasMore, setHasMore] = useState(true); // For InfiniteScroll
+  const [isFetching, setIsFetching] = useState(false);
+  const [navigationInProgress, setNavigationInProgress] = useState(false);
 
   // Media Modal State
   const [mediaModalOpen, setMediaModalOpen] = useState(false);
@@ -101,27 +107,43 @@ const DriveContents = () => {
   // Loading States
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmittingPin, setIsSubmittingPin] = useState(false);
+  // Suppose we track a page number in our state
+  const [page, setPage] = useState(1);
+  const pageSize = 20; // or whatever
 
   useEffect(() => {
-    fetchData();
+    // setAllItems([]);
+    if (page > 1 || allItems.length === 0) {
+      loadMore(page);
+    }
+    setHasMore(true);
+    // fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    driveLetter,
-    currentPath,
-    sorting,
-    filtering,
-    thumbnailSize,
-    pagination.current_page,
-    pagination.page_size,
-    isPrivate,
-  ]);
+  }, [page]);
 
-  const fetchData = () => {
-    setIsLoading(true); // Start loading
-    setErrorMessage(""); // Reset previous errors
+  useEffect(() => {
+    setPage(1);
+    setAllItems([]);
+    setHasMore(true);
+    setIsLoading(false);
+    setNavigationInProgress(true);
+    loadMore(1);
+    console.log(currentPath, page);
+  }, [location.pathname, driveLetter, currentPath]);
+
+  const loadMore = async (thePage) => {
+    console.log('navprog true', navigationInProgress, isFetching, hasMore);
+    // if (isFetching || isPrivate || !hasMore) return;
+    console.log(
+      `[${Date.now()}}] loadMore => page:`,
+      thePage,
+      navigationInProgress
+    );
+
+    setIsFetching(true);
 
     const params = {
-      path: currentPath || "",
+      path: currentPath || '',
       sort_by: sorting.sort_by,
       sort_dir: sorting.sort_dir,
       type: filtering.filter_type,
@@ -130,66 +152,88 @@ const DriveContents = () => {
       size_max: filtering.size_max,
       date_from: filtering.date_from,
       date_to: filtering.date_to,
-      thumbnail_size: thumbnailSize,
-      page: pagination.current_page,
-      page_size: pagination.page_size,
+      page_size: pageSize,
+      page: thePage, //  pass the page from infinite scroller
+      thumbnail_size: queryParams.thumbnail_size || '100',
     };
 
-    const query = queryString.stringify(params);
+    try {
+      const query = queryString.stringify(params);
+      const response = await fetch(
+        `/api/drive/${driveLetter}/files/?${query}`,
+        {
+          credentials: 'include',
+        }
+      );
 
-    fetch(`/api/drive/${driveLetter}/files/?${query}`, {
-      credentials: "include", // Include cookies for session-based authentication
-    })
-      .then((response) => {
-        if (response.status === 401) {
-          // Directory is private and requires PIN
-          return response.json().then((data) => {
-            if (data.is_private) {
-              setIsPrivate(true);
-              setItems([]);
-              setBaseDir(driveLetter);
-              setIsLoading(false);
-              return;
-            }
-            throw new Error("Unauthorized");
-          });
+      if (response.status === 401) {
+        // handle private
+        const data = await response.json();
+        if (data.is_private) {
+          setIsPrivate(true);
+          setIsFetching(false);
+          setHasMore(false); // Can't load more
+          return;
         }
-        if (!response.ok) {
-          throw new Error("Network response was not ok");
-        }
-        return response.json();
-      })
-      .then((data) => {
-        if (!isPrivate && data) {
-          setItems(data.items);
-          setBaseDir(data.base_dir);
-          // setThumbnailSize(data.thumbnail_size.toString());
-          setPagination({
-            current_page: data.pagination.current_page,
-            page_size: data.pagination.page_size,
-            total_pages: data.pagination.total_pages,
-            total_items: data.pagination.total_items,
-          });
-        }
-        setIsLoading(false); // End loading
-      })
-      .catch((error) => {
-        console.error("Error fetching drive contents:", error);
-        setErrorMessage("Failed to load drive contents. Please try again.");
-        setIsLoading(false); // End loading
+        throw new Error('Unauthorized');
+      }
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch items');
+      }
+
+      const data = await response.json();
+      // data.items is the chunk for THIS page
+
+      // If there are new items, add them to allItems
+      setAllItems((prevItems) => [...prevItems, ...data.items]);
+
+      if (data.items.length < pageSize) {
+        setHasMore(false);
+      }
+
+      // Check if we can load more
+      const totalFetchedSoFar =
+        (thePage - 1) * pagination.page_size + data.items.length;
+      const stillHasMore = totalFetchedSoFar < data.pagination.total_items;
+
+      setPagination({
+        current_page: data.pagination.current_page,
+        page_size: data.pagination.page_size,
+        total_items: data.pagination.total_items,
       });
+      // setHasMore(stillHasMore);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      // Maybe set an error message in your state
+      setHasMore(false);
+    } finally {
+      setIsFetching(false);
+    }
+
+    setNavigationInProgress(false);
+    console.log('navprog false', navigationInProgress);
+  };
+
+  const nextPage = () => {
+    console.log('nextPage', navigationInProgress);
+    if (!isFetching && hasMore && !navigationInProgress) {
+      console.log('is Fetching');
+      console.log(isFetching);
+      setPage((prev) => prev + 1);
+    }
   };
 
   // Utility function to get CSRF token from cookies
   const getCSRFToken = () => {
-    const name = "csrftoken";
-    const cookies = document.cookie.split(";").map((cookie) => cookie.trim());
+    const name = 'csrftoken';
+    const cookies = document.cookie.split(';').map((cookie) => cookie.trim());
     for (let cookie of cookies) {
-      if (cookie.startsWith(name + "=")) {
+      if (cookie.startsWith(name + '=')) {
         return decodeURIComponent(cookie.substring(name.length + 1));
       }
     }
-    return "";
+    return '';
   };
 
   const handleSortingChange = (e) => {
@@ -245,31 +289,31 @@ const DriveContents = () => {
   };
 
   // Handle Pagination
-  const handlePageChange = (pageNumber) => {
-    const params = {
-      ...queryParams,
-      page: pageNumber,
-    };
-    const newQuery = queryString.stringify(params);
-    navigate(`${location.pathname}?${newQuery}`);
-  };
+  // const handlePageChange = (pageNumber) => {
+  //   const params = {
+  //     ...queryParams,
+  //     page: pageNumber,
+  //   };
+  //   const newQuery = queryString.stringify(params);
+  //   navigate(`${location.pathname}?${newQuery}`);
+  // };
 
-  const handleNextPage = () => {
-    if (pagination.current_page < pagination.total_pages) {
-      handlePageChange(pagination.current_page + 1);
-    }
-  };
+  // const handleNextPage = () => {
+  //   if (pagination.current_page < pagination.total_pages) {
+  //     handlePageChange(pagination.current_page + 1);
+  //   }
+  // };
 
-  const handlePrevPage = () => {
-    if (pagination.current_page > 1) {
-      handlePageChange(pagination.current_page - 1);
-    }
-  };
+  // const handlePrevPage = () => {
+  //   if (pagination.current_page > 1) {
+  //     handlePageChange(pagination.current_page - 1);
+  //   }
+  // };
 
   // Handle specific page number click
-  const handlePageNumberClick = (pageNumber) => {
-    handlePageChange(pageNumber);
-  };
+  // const handlePageNumberClick = (pageNumber) => {
+  //   handlePageChange(pageNumber);
+  // };
 
   // Handle Media Modal interactions
   const openMediaModal = (mediaIndex) => {
@@ -301,34 +345,34 @@ const DriveContents = () => {
       };
 
       axios
-        .post("/api/delete/", data, {
+        .post('/api/delete/', data, {
           headers: {
-            "Content-Type": "application/json",
-            "X-CSRFToken": getCSRFToken(),
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCSRFToken(),
           },
           withCredentials: true,
         })
         .then((response) => {
           if (response.data.success) {
-            fetchData();
+            // loadMore();
           } else {
-            alert(response.data.error || "Failed to delete the item");
+            alert(response.data.error || 'Failed to delete the item');
           }
         })
         .catch((error) => {
-          console.error("Error deleting item: ", error);
-          alert("An error occurred while deleting the item");
+          console.error('Error deleting item: ', error);
+          alert('An error occurred while deleting the item');
         });
     }
   };
 
   // Helper function to format bytes to human-readable form
   const formatSize = (bytes) => {
-    if (bytes === 0) return "0 Bytes";
+    if (bytes === 0) return '0 Bytes';
     const k = 1024;
-    const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
   // Prepare media items for modal
@@ -336,7 +380,7 @@ const DriveContents = () => {
     const mediaFiles = items
       .filter((item) => !item.is_dir && item.thumbnail)
       .map((item) => ({
-        type: item.is_video ? "video" : "image",
+        type: item.is_video ? 'video' : 'image',
         src: `/downloads/${driveLetter}/${encodeURIComponent(
           item.relative_path
         )}`,
@@ -348,44 +392,44 @@ const DriveContents = () => {
         )}`,
       }));
     setMediaItems(mediaFiles);
-  }, [items, driveLetter, pagination]);
+  }, [items, driveLetter, page, currentPath]);
 
   // Handle PIN Submission
   const handlePinSubmit = (e) => {
     e.preventDefault();
 
     setIsSubmittingPin(true);
-    setPinError(""); // Reset previous errors
+    setPinError(''); // Reset previous errors
 
     const data = {
-      path: currentPath || "",
+      path: currentPath || '',
       pin: pin,
     };
 
     fetch(`/api/drive/${driveLetter}/validate_pin/`, {
-      method: "POST",
+      method: 'POST',
       headers: {
-        "Content-Type": "application/json",
-        "X-Requested-With": "XMLHttpRequest",
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
       },
-      credentials: "include", // Include cookies for session
+      credentials: 'include', // Include cookies for session
       body: JSON.stringify(data),
     })
       .then((response) => response.json())
       .then((data) => {
         if (data.success) {
           setIsPrivate(false);
-          setPin("");
-          setPinError("");
-          fetchData(); // Re-fetch data after successful PIN validation
+          setPin('');
+          setPinError('');
+          // loadMore(); // Re-fetch data after successful PIN validation
         } else {
-          setPinError(data.error || "Incorrect PIN. Please try again.");
+          setPinError(data.error || 'Incorrect PIN. Please try again.');
         }
         setIsSubmittingPin(false);
       })
       .catch((error) => {
-        console.error("Error submitting PIN:", error);
-        setPinError("An error occurred. Please try again.");
+        console.error('Error submitting PIN:', error);
+        setPinError('An error occurred. Please try again.');
         setIsSubmittingPin(false);
       });
   };
@@ -398,18 +442,19 @@ const DriveContents = () => {
           <h1 className={styles.h1}>
             File Transfer - {driveLetter}:\{currentPath}
           </h1>
-          <button className={styles.option} onClick={() => navigate("/drive/")}>
-            Home
+          <button className={styles.option} onClick={() => navigate('/drive/')}>
+            <FontAwesomeIcon icon={faHome} />
           </button>
           <button
             className={styles.option}
             onClick={handleGoUp}
             disabled={isRoot}
           >
-            Go Up
+            <FontAwesomeIcon icon={faArrowUp} />
           </button>
+
           {/* "Upload Files" Link */}
-            {/* <Link
+          {/* <Link
               to={`/upload?base_dir=${encodeURIComponent(
                 baseDir
               )}&path=${encodeURIComponent(currentPath)}`}
@@ -417,19 +462,30 @@ const DriveContents = () => {
             >
               Upload Files
             </Link> */}
-            <button className={styles.option} onClick={()=> navigate(
-        `/upload?base_dir=${encodeURIComponent(baseDir)}&path=${encodeURIComponent(
-          currentPath
-        )}`
-      )}>Upload Files</button>
-          
-          {/* Advanced Filters Dropdown */}
+          <button
+            className={styles.option}
+            onClick={() =>
+              navigate(
+                `/upload?base_dir=${encodeURIComponent(
+                  baseDir
+                )}&path=${encodeURIComponent(currentPath)}`
+              )
+            }
+          >
+            <FontAwesomeIcon icon={faUpload} />
+          </button>
+        </div>
+        {/* Advanced Filters Dropdown */}
+        <div className={styles.secondRow}>
+          <div className={styles.searchBar}>
+            <SearchBar />
+          </div>
           <div className={styles.advancedFilters}>
             <button
               className={styles.advancedFiltersButton}
               onClick={toggleDropdown}
             >
-              Advanced Filters
+              Filters
             </button>
 
             {isDropdownVisible && (
@@ -536,15 +592,12 @@ const DriveContents = () => {
             )}
           </div>
         </div>
-        <div className={styles.searchBar}>
-          <SearchBar />
-        </div>
       </div>
 
       {/* Display Error Message */}
       {errorMessage && (
         <div className={styles.errorMessage}>
-          <p style={{ color: "red" }}>{errorMessage}</p>
+          <p style={{ color: 'red' }}>{errorMessage}</p>
         </div>
       )}
 
@@ -553,209 +606,18 @@ const DriveContents = () => {
 
       {/* File Table */}
       <h2>Available Files and Directories</h2>
-      <table>
-        <colgroup>
-          <col style={{ width: "100px" }} /> {/* Thumbnail */}
-          <col style={{ width: "200px" }} /> {/* Name */}
-          <col style={{ width: "100px" }} /> {/* Size */}
-          <col style={{ width: "150px" }} /> {/* Last Modified */}
-          <col style={{ width: "200px" }} /> {/* Actions */}
-        </colgroup>
-        <thead>
-          <tr>
-            <th style={{ width: "100px" }}>Thumbnail</th>
-            <th>Name</th>
-            <th>Size</th>
-            <th>Last Modified</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((item, index) => {
-            if (item.is_dir) {
-              return (
-                <tr key={item.relative_path}>
-                  <td>
-                    <span role="img" aria-label="Folder">
-                      📁
-                    </span>
-                  </td>
-                  <td>
-                    <a
-                      href="#"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        navigate(
-                          `/drive/${driveLetter}/${encodeURIComponent(
-                            item.relative_path
-                          )}`
-                        );
-                      }}
-                    >
-                      {item.name}
-                    </a>
-                  </td>
-                  <td>{item.size ? formatSize(item.size) : "—"}</td>
-                  <td>{item.modified}</td>
-                  <td>
-                    <div className={styles.actionButtons}>
-                      <a
-                        href={`/download_zip/?path=${encodeURIComponent(
-                          item.relative_path.replace(/\\/g, "/")
-                        )}&base_dir=${driveLetter}`}
-                        className={styles.download}
-                      >
-                        Download Zip
-                      </a>
-                      <button
-                        className={styles.delete}
-                        onClick={() => handleDelete(item)}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            } else if (item.thumbnail) {
-              // Find the mediaItems index for this item
-              const mediaIndex = mediaItems.findIndex(
-                (mediaItem) =>
-                  mediaItem.src ===
-                  `/downloads/${driveLetter}/${encodeURIComponent(
-                    item.relative_path
-                  )}`
-              );
 
-              return (
-                <tr key={item.relative_path}>
-                  <td>
-                      <img
-                        src={`/transfer/thumbnails/${item.thumbnail}`}
-                        alt="Thumbnail"
-                        className={styles.thumbnail}
-                        onClick={() => {
-                          if (mediaIndex !== -1) {
-                            openMediaModal(mediaIndex); // Open modal for image
-                          }
-                        }}
-                      />
-                    
-                  </td>
-                  <td>{item.name}</td>
-                  <td>{item.size ? formatSize(item.size) : "—"}</td>
-                  <td>{item.modified}</td>
-                  <td>
-                    {/* Actions */}
-                    
-                    <div className={styles.actionButtons}>
-                      <a
-                        href={`/downloads/${driveLetter}/${encodeURIComponent(
-                          item.relative_path
-                        )}`}
-                        download
-                        className={styles.download}
-                      >
-                        Download
-                      </a>
-                      {item.is_video && (
-                        <a
-                          href={`/stream/${driveLetter}/${encodeURIComponent(
-                            item.relative_path
-                          )}`}
-                          className={styles.stream}
-                        >
-                          Stream
-                        </a>
-                      )}
-                      <button
-                        className={styles.delete}
-                        onClick={() => handleDelete(item)}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  
-                  </td>
-                </tr>
-              );
-            } else {
-              // Non-thumbnail files
-              return (
-                <tr key={item.relative_path}>
-                  <td>
-                    <span role="img" aria-label="File">
-                      📄
-                    </span>
-                  </td>
-                  <td>
-                    {item.is_text ? (
-                      <div className={styles.text}><a
-                      className={styles.a}
-                        href="#"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          navigate(
-                            `/edit/${driveLetter}/${encodeURIComponent(
-                              item.relative_path
-                            )}`
-                          );
-                        }}
-                      >
-                        {item.name}
-                      </a>
-                      </div>
-                    ) : (
-                      item.name
-                    )}
-                  </td>
-                  <td>{item.size ? formatSize(item.size) : "—"}</td>
-                  <td>{item.modified}</td>
-                  <td>
-                    <div className={styles.actionButtons}>
-                      <a
-                        href={`/downloads/${driveLetter}/${encodeURIComponent(
-                          item.relative_path
-                        )}`}
-                        download
-                        className={styles.download}
-                      >
-                        Download
-                      </a>
-                    
-                      <button
-                        className={styles.delete}
-                        onClick={() => handleDelete(item)}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            }
-          })}
-        </tbody>
-      </table>
-
-      {/* Pagination Controls */}
-      <div className={styles.pagination}>
-        <button
-          onClick={handlePrevPage}
-          disabled={pagination.current_page === 1}
-          className={styles.paginationButton}
-        >
-          &laquo; Prev
-        </button>
-
-        <button
-          onClick={handleNextPage}
-          disabled={pagination.current_page === pagination.total_pages}
-          className={styles.paginationButton}
-        >
-          Next &raquo;
-        </button>
-      </div>
+      <InfiniteTable
+        items={allItems}
+        loadMore={nextPage}
+        hasMore={hasMore}
+        isLoading={isFetching}
+        mediaItems={mediaItems}
+        driveLetter={driveLetter}
+        handleDelete={handleDelete}
+        formatSize={formatSize}
+        openMediaModal={openMediaModal}
+      />
 
       {/* Media Modal */}
       {mediaModalOpen &&
@@ -775,11 +637,10 @@ const DriveContents = () => {
             {/* Modal Content */}
             <div className={styles.modalContent}>
               <div className={styles.modalMediaContainer}>
-                
-                {mediaItems[currentMediaIndex].type === "image" ? (
+                {mediaItems[currentMediaIndex].type === 'image' ? (
                   <img
                     src={mediaItems[currentMediaIndex].src}
-                    alt='image'
+                    alt="image"
                     className={styles.modalMedia}
                   />
                 ) : (
@@ -832,11 +693,11 @@ const DriveContents = () => {
                 onChange={(e) => setPin(e.target.value)}
               />
               <button type="submit" disabled={isSubmittingPin}>
-                {isSubmittingPin ? "Submitting..." : "Submit"}
+                {isSubmittingPin ? 'Submitting...' : 'Submit'}
               </button>
             </form>
             {pinError && (
-              <p id="pinError" style={{ color: "red" }}>
+              <p id="pinError" style={{ color: 'red' }}>
                 {pinError}
               </p>
             )}

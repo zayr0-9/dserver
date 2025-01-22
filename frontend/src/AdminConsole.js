@@ -41,13 +41,13 @@ const AdminConsole = () => {
         <button onClick={() => (window.location.href = '/')}>Home</button>
       </div>
       <div>
-        <DriveLetterUpdate/>
+        <DriveLetterUpdate />
       </div>
 
       <div className={styles.container}>
         <h2>Manage Directories</h2>
         {error && <p className={styles.error}>{error}</p>}
-        <table className={styles.table}>
+        <table className={styles.adminConsoleTable}>
           <thead>
             <tr>
               <th>Name</th>
@@ -63,7 +63,10 @@ const AdminConsole = () => {
               <tr key={item.relative_path}>
                 <td>
                   {item.is_dir ? (
-                    <a href="#!" onClick={() => handleNavigate(item.relative_path)}>
+                    <a
+                      href="#!"
+                      onClick={() => handleNavigate(item.relative_path)}
+                    >
                       {item.name}
                     </a>
                   ) : (
@@ -73,12 +76,8 @@ const AdminConsole = () => {
                 <td>{item.is_dir ? 'Directory' : 'File'}</td>
                 <td>{item.size || ''}</td>
                 <td>{item.modified}</td>
-                <td>
-                  {/* Add action buttons */}
-                </td>
-                <td>
-                  {/* Add status buttons */}
-                </td>
+                <td>{/* Add action buttons */}</td>
+                <td>{/* Add status buttons */}</td>
               </tr>
             ))}
           </tbody>

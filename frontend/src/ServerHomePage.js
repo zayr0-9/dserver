@@ -1,31 +1,23 @@
-import React, { useEffect, useState } from "react";
-import "./ServerHomePage.css";
-import { useNavigate } from "react-router-dom";
-import { Link } from "react-router-dom";
-import AdminConsole from "./AdminConsole";
+import React from 'react';
+import styles from './ServerHomePage.module.css';
+import { Link } from 'react-router-dom';
 
 const ServerHomePage = () => {
-  const navigate = useNavigate();
-
-  const handleNavigate = (path) => {
-    navigate(path);
-  };
-
   return (
-    <div className="homepage">
-      <h1> Welcome to the Server</h1>
-      <div className="options">
-        <button className="option">
-          <Link to="/drive/">File Mode</Link>
-        </button>
-        <button className="option">
-          <Link to="/theatre-mode">Theatre Mode</Link>
-        </button>
-        <button className="option">
-          <Link to="/admin-console">Admin Console</Link>
-          
-        </button>
-        
+    <div className={styles.homepage}>
+      <div className={styles.homepageBody}>
+        <h1 className={styles.homepageTitle}>Welcome to the Server</h1>
+        <div className={styles.homepageOptions}>
+          <button className={styles.option}>
+            <Link to="/drive/">File Mode</Link>
+          </button>
+          <button className={styles.option}>
+            <Link to="/theatre-mode">Theatre Mode</Link>
+          </button>
+          <button className={styles.option}>
+            <Link to="/admin-console">Admin Console</Link>
+          </button>
+        </div>
       </div>
     </div>
   );
