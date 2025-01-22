@@ -44,3 +44,4 @@ jobs:
         with:
           files: dserver.zip # Include the ZIP
           generate_release_notes: true # Auto-generate release notes
+          tag_name: release-$(date +%Y%m%d%H%M%S) # Add a tag for the release
