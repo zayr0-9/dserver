@@ -9,6 +9,8 @@ import InfiniteTable from './InfiniteTable'; // our new custom component
 import axios from 'axios';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faArrowUp, faHome, faUpload } from '@fortawesome/free-solid-svg-icons';
+import * as THREE from 'three';
+import VANTA from 'vanta/dist/vanta.net.min';
 
 function getParentPath(path) {
   // Convert backslashes to forward slashes
@@ -28,7 +30,8 @@ const DriveContents = () => {
   const { driveLetter, '*': pathParam } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-
+  const vantaRef = useRef(null);
+  const [vantaEffect, setVantaEffect] = useState(null);
   // Parse the current path from the URL
   const currentPath = pathParam || '';
 
@@ -55,7 +58,36 @@ const DriveContents = () => {
     const parentPath = getParentPath(currentPath);
     navigate(`/drive/${driveLetter}/${encodeURIComponent(parentPath)}`);
   };
+  useEffect(() => {
+    if (!vantaEffect) {
+      // console.log('Initializing Vanta.js effect...');
+      const effect = VANTA({
+        el: vantaRef.current,
+        THREE: THREE,
+        mouseControls: false,
+        touchControls: false,
+        gyroControls: false,
+        minHeight: 200.0,
+        minWidth: 200.0,
+        scale: 1.0,
+        scaleMobile: 1.0,
+        color: 0xf1c232, // Your custom color
+        backgroundColor: '#0E0612', // Your custom background
+        points: 5, // Number of points
+        maxDistance: 0, // Max connection distance
+        spacing: 35, // Space between points
+        showDots: true, // Show the dots
+        // pointColor: 0x3f81ff,
+      });
+      setVantaEffect(effect);
+      // console.log('Vanta.js effect initialized:', effect);
+    }
 
+    // Cleanup Vanta.js effect on unmount
+    return () => {
+      if (vantaEffect) vantaEffect.destroy();
+    };
+  }, [vantaEffect]);
   // Close the dropdown when clicking outside of it
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -88,12 +120,6 @@ const DriveContents = () => {
     date_to: queryParams.date_to || '',
   });
 
-  // Pagination state
-  // const [pagination, setPagination] = useState({
-  //   current_page: 0,
-  //   page_size: parseInt(queryParams.page_size) || 300, // smaller page_size works better for infinite scroll
-  //   total_items: 0,
-  // });
   //for infinite scroll
   const [hasMore, setHasMore] = useState(true); // For InfiniteScroll
   const [isFetching, setIsFetching] = useState(false);
@@ -109,7 +135,7 @@ const DriveContents = () => {
   const [isSubmittingPin, setIsSubmittingPin] = useState(false);
   // Suppose we track a page number in our state
   const [page, setPage] = useState(1);
-  const pageSize = 20; // or whatever
+  const pageSize = 50; // or whatever
 
   useEffect(() => {
     // setAllItems([]);
@@ -129,16 +155,12 @@ const DriveContents = () => {
     setNavigationInProgress(true);
     // loadMore(1);
     // console.log(currentPath, page);
-  }, [location.pathname]);
+  }, [location.pathname, sorting, filtering]);
 
   const loadMore = async (thePage) => {
-    console.log('navprog true', navigationInProgress, isFetching, hasMore);
+    // console.log('navprog true', navigationInProgress, isFetching, hasMore);
     // if (isFetching || isPrivate || !hasMore) return;
-    console.log(
-      `[${Date.now()}}] loadMore => page:`,
-      thePage,
-      navigationInProgress
-    );
+    // console.log('loadMore => page:', thePage, navigationInProgress);
 
     setIsFetching(true);
 
@@ -191,18 +213,6 @@ const DriveContents = () => {
       if (data.items.length < pageSize) {
         setHasMore(false);
       }
-
-      // Check if we can load more
-      // const totalFetchedSoFar =
-      //   (thePage - 1) * pagination.page_size + data.items.length;
-      // const stillHasMore = totalFetchedSoFar < data.pagination.total_items;
-
-      // setPagination({
-      //   current_page: data.pagination.current_page,
-      //   page_size: data.pagination.page_size,
-      //   total_items: data.pagination.total_items,
-      // });
-      // setHasMore(stillHasMore);
     } catch (error) {
       console.error('Error fetching data:', error);
       // Maybe set an error message in your state
@@ -212,14 +222,13 @@ const DriveContents = () => {
     }
 
     setNavigationInProgress(false);
-    console.log('navprog false', navigationInProgress);
+    console.log('navprog false ->', navigationInProgress);
   };
 
   const nextPage = () => {
-    console.log('nextPage', navigationInProgress);
+    // console.log('nextPage ->', navigationInProgress);
     if (!isFetching && hasMore && !navigationInProgress) {
-      console.log('is Fetching');
-      console.log(isFetching);
+      // console.log('is Fetching ->', isFetching);
       setPage((prev) => prev + 1);
     } else {
       loadMore(1);
@@ -252,10 +261,6 @@ const DriveContents = () => {
     });
   };
 
-  // const handleThumbnailSizeChange = (e) => {
-  //   setThumbnailSize(e.target.value);
-  // };
-
   const handleSortingSubmit = (e) => {
     e.preventDefault();
     const params = {
@@ -279,44 +284,6 @@ const DriveContents = () => {
     navigate(`${location.pathname}?${newQuery}`);
   };
 
-  // const handleThumbnailSizeSubmit = (e) => {
-  //   e.preventDefault();
-  //   const params = {
-  //     ...queryParams,
-  //     thumbnail_size: thumbnailSize,
-  //     page: 1, // Reset to first page on thumbnail size change
-  //   };
-  //   const newQuery = queryString.stringify(params);
-  //   navigate(`${location.pathname}?${newQuery}`);
-  // };
-
-  // Handle Pagination
-  // const handlePageChange = (pageNumber) => {
-  //   const params = {
-  //     ...queryParams,
-  //     page: pageNumber,
-  //   };
-  //   const newQuery = queryString.stringify(params);
-  //   navigate(`${location.pathname}?${newQuery}`);
-  // };
-
-  // const handleNextPage = () => {
-  //   if (pagination.current_page < pagination.total_pages) {
-  //     handlePageChange(pagination.current_page + 1);
-  //   }
-  // };
-
-  // const handlePrevPage = () => {
-  //   if (pagination.current_page > 1) {
-  //     handlePageChange(pagination.current_page - 1);
-  //   }
-  // };
-
-  // Handle specific page number click
-  // const handlePageNumberClick = (pageNumber) => {
-  //   handlePageChange(pageNumber);
-  // };
-
   // Handle Media Modal interactions
   const openMediaModal = (mediaIndex) => {
     if (mediaIndex >= 0 && mediaIndex < mediaItems.length) {
@@ -339,11 +306,13 @@ const DriveContents = () => {
     );
   };
 
-  const handleDelete = (item) => {
-    if (window.confirm(`Are you sure you want to delete ${item.name}?`)) {
+  const handleDelete = (itemToDelete) => {
+    if (
+      window.confirm(`Are you sure you want to delete ${itemToDelete.name}?`)
+    ) {
       const data = {
         base_dir: driveLetter,
-        relative_path: item.relative_path,
+        relative_path: itemToDelete.relative_path,
       };
 
       axios
@@ -357,6 +326,11 @@ const DriveContents = () => {
         .then((response) => {
           if (response.data.success) {
             // loadMore();
+            setAllItems((prevItems) =>
+              prevItems.filter(
+                (item) => item.relative_path !== itemToDelete.relative_path
+              )
+            );
           } else {
             alert(response.data.error || 'Failed to delete the item');
           }
@@ -379,7 +353,7 @@ const DriveContents = () => {
 
   // Prepare media items for modal
   useEffect(() => {
-    const mediaFiles = items
+    const mediaFiles = allItems
       .filter((item) => !item.is_dir && item.thumbnail)
       .map((item) => ({
         type: item.is_video ? 'video' : 'image',
@@ -394,7 +368,7 @@ const DriveContents = () => {
         )}`,
       }));
     setMediaItems(mediaFiles);
-  }, [items, driveLetter, page, currentPath]);
+  }, [items, driveLetter, page, currentPath, allItems]);
 
   // Handle PIN Submission
   const handlePinSubmit = (e) => {
@@ -437,12 +411,13 @@ const DriveContents = () => {
   };
 
   return (
-    <div className={styles.driveContents}>
+    <div className={styles.driveContents} ref={vantaRef}>
       {/* Top Bar */}
       <div className={styles.topBar}>
         <div className={styles.topRow}>
           <h1 className={styles.h1}>
-            File Transfer - {driveLetter}:\{currentPath}
+            {driveLetter}:\{currentPath.split('/').slice(-1)[0]}{' '}
+            {/* Show only current folder */}
           </h1>
           <button className={styles.option} onClick={() => navigate('/drive/')}>
             <FontAwesomeIcon icon={faHome} />
@@ -597,7 +572,7 @@ const DriveContents = () => {
       {isLoading && <div className={styles.loadingSpinner}>Loading...</div>}
 
       {/* File Table */}
-      <h2>Available Files and Directories</h2>
+      {/* <h2>Available Files and Directories</h2> */}
 
       <InfiniteTable
         items={allItems}

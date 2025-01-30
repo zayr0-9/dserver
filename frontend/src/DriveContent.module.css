@@ -1,442 +1,490 @@
+/* Ensure html and body allow scrolling */
+html,
+body {
+  /* height: 100%; */
+  margin: 0;
+  padding: 0;
+  /* overflow: auto; Ensure scrolling is allowed */
+  display: flex;
+  height: 100vh;
+  flex-direction: column;
+  background-color: #1d1d1d;
+}
 
-  
-  /* Ensure html and body allow scrolling */
-  html, body {
-    /* height: 100%; */
-    margin: 0;
-    padding: 0;
-    /* overflow: auto; Ensure scrolling is allowed */
-    display: flex;
-    flex-direction: column;
-    background-color: #1d1d1d;
-  }
-  
-  /* Drive Contents Container */
-  .driveContents {
-    /* flex: 1; Allow this container to grow and take available space */
-    padding: 20px;
-    font-family: Arial, sans-serif;
-    color: #bdbdbd;
-    /* Removed min-height: 100vh; */
-    /* box-sizing: border-box; */
-    /* overflow: auto; Allow internal scrolling if necessary */
-  }
-  
-  /* Top Bar */
-  .topBar {
-    display: flexbox;
-    justify-content: left;
-    align-items: center;
-    margin-bottom: 20px;
-    /* Optional: make the top bar sticky */
-    position: sticky;
-    top: 0;
-    background-color: #1a1a1a;
-    z-index: 100;
-    padding: 10px 0;
-  }
-  
+/* Drive Contents Container */
+.driveContents {
+  /* padding: 0px 10px 10px 10px; */
+  font-family: Arial, sans-serif;
+  color: #bdbdbd;
+  overflow: hidden;
+  /* backdrop-filter: blur(10px);  */
+  background-color: rgba(255, 255, 255, 0.053);
+  height: 100vh;
+}
+
+/* Top Bar */
+.topBar {
+  display: flexbox;
+  justify-content: left;
+  align-items: center;
+  margin-bottom: 20px;
+  position: relative;
+  top: 0;
+  background-color: rgba(206, 206, 206, 0.02);
+  /* backdrop-filter: blur(10px); */
+  z-index: 1;
+  padding: 10px;
+}
+
 .topBar .topRow {
-    display: flex;
-    justify-content: left;
-    align-items: center;
-    width: 100%; /* Ensure it spans the full width */
+  display: flex;
+  justify-content: left;
+  align-items: center;
+  width: 100%;
+  /* backdrop-filter: blur(10px); */
+  background-color: rgba(206, 206, 206, 0.02);
+  border-radius: 10px;
 }
 
 .topBar .secondRow {
-  display: flex; /* Keep them side by side */
-  justify-content: space-between; /* Space between the search bar and the filter button */
+  display: flex;
+  /* Keep them side by side */
+  justify-content: space-left;
   align-items: center;
-  gap: 10px; /* Add some spacing between the elements */
+  gap: 10px;
+  /* backdrop-filter: blur(10px); */
+  background-color: rgba(206, 206, 206, 0.02);
+  border-radius: 10px;
 }
 
-.topBar .searchBar {
-  flex-grow: 1; /* Allow the search bar to take available space */
-  margin-right: 10px; /* Add spacing to the right of the search bar */
-  text-align: left; /* Align the search bar content to the left */
-  background-color: #1a1a1a;
+/* .topBar .searchBar { */
+/* flex-grow: 1; Allow the search bar to take available space */
+/* margin-right: 10px; Add spacing to the right of the search bar */
+/* text-align: left; Align the search bar content to the left */
+/* background-color: #1a1a1a;
   border-radius: 5px;
   position: relative;
   z-index: 1000;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
-}
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5); */
+/* } */
 
 .topBar .advancedFilters {
   flex-shrink: 0; /* Prevent the filter button from shrinking */
   margin-left: 10px; /* Add spacing to the left of the filter button */
 }
 
-  .topBar h1 {
-    font-size: 2em;
-    margin : 5px
-  }
+.topBar h1 {
+  font-size: 2em;
+  margin: 5px;
+  text-overflow: ellipsis;
+  border-radius: 15px;
+  padding: 2px;
+}
 
-  .driveContent h2 {
-    font-size: 1.5em;
-  }
-  
-  .topBar .uploadLink {
-    color: #ccc;
-    /* font-size: 1.2em; */
-  }
-  .topBar .option {
-    padding: 5px 15px;
-    background-color: #32669e;
-    color: #dadada;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    font-size: 1.5em;
-    margin: 5px;
-  }
-  .infiniteScrollContainer {
-    height: 100%;
-    overflow-y: auto;
-  }
-  .topBar .option:hover {
-    background-color: #0056b3;
-  }
-  
-  /* Forms Section */
-  .formSection {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 20px;
-    margin-bottom: 20px;
-  }
-  
-  .formSection form {
-    display: flow;
-    flex-direction: column;
-  }
-  
-  .formSection label {
-    margin-bottom: 5px;
-    font-weight: bold;
-  }
-  
-  .formSection select,
-  .formSection input {
-    padding: 5px;
-    margin-bottom: 10px;
-    border: 1px solid #ccc;
-    border-radius: 3px;
-    background-color: #1e1e1e;
-    color: white;
-    border-color: #535353;
-  }
-  
-  .formSection button {
-    padding: 5px 10px;
-    background-color: #28a745;
-    color: #fff;
-    border: none;
-    border-radius: 3px;
-    cursor: pointer;
-  }
-  
-  .formSection button:hover {
-    background-color: #218838;
-  }
-  
-  /* .infiniteTable Styles */
-  .infiniteTable {
-    width: 100%;
-    border-collapse: collapse;
-    margin-bottom: 20px;
-    /* .infiniteTable-layout: fixed; Ensure consistent column widths */
-    word-wrap: break-word; /* Prevent long text from overflowing */
-    background-color: #1d1d1d;
-    border-collapse: collapse;
-    table-layout: fixed;
-    border-bottom: 0.5px;
-  }
-  .infiniteTable tbody tr:nth-child(odd) {
-    background-color: #232323; /* Dark grey for odd rows */
-  }
-  /* Ensure hover works regardless of alternating colors */
-  .infiniteTable tbody tr:hover {
-    background-color: #bbbbbb; /* Your desired hover color */
-    color: #212121; /* Ensure text remains readable */
-  }
-  .infiniteTable tbody tr:hover {
-    background-color: #333; /* Your desired hover color */
-    color: #fff; /* Ensure text remains readable */
-  }
-  
-  .infiniteTable tr {
-    width:100px
-  }
-  .infiniteTable th {
-    font-size: 1em;
-    background-color: #1d1d1d;
-  }
-  .infiniteTable th, td {
-    /* border: 0.5px solid #434343; */
-    padding: 5px;
-    text-align: left;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: normal; /* Prevent text from wrapping */
-    font-size: 1.3em;
-  }
-  
-  .infiniteTable th:first-of-type {
-    border-top-left-radius: 10px;
-  }
-  .infiniteTable th:last-of-type {
-    border-top-right-radius: 10px;
-  }
-  .infiniteTable tr:last-of-type td:first-of-type {
-    border-bottom-left-radius: 10px;
-  }
-  .infiniteTable tr:last-of-type td:last-of-type {
-    border-bottom-right-radius: 10px;
-  }
+.driveContent h2 {
+  font-size: 1.5em;
+}
 
-  .linkButton  {
-    background: none;
-    border: none;
-    padding: 0;
-    margin: 0;
-    font: inherit;
-    color: inherit;
-    cursor: pointer;
-    text-align: left;
-    text-decoration: underline;
-  }
-  .text {
-    text-decoration: underline;
-  }
-  .text .a {
-    text-decoration: underline;
-  }
-  .infiniteTable td a {
-    font-size: 1em;
-    /* padding: 15px 25px; */
-    /* background-color: #555; */
-    color: #fff;
-    text-decoration: none;
-    /* border-radius: 10px; */
-    transition: background-color 0.3s, transform 0.2s;
-    display: inline-block;
-    width: 100%; /* Make it full-width for touch targets */
-    text-align: left;
-  }
-  
-  
-  /* a {
+.topBar .uploadLink {
+  color: #ccc;
+  /* font-size: 1.2em; */
+}
+.topBar .option {
+  padding: 5px 15px;
+  background-color: #32669e;
+  color: #dadada;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 1.5em;
+  margin: 5px;
+}
+.infiniteScrollContainer {
+  height: 100%;
+  overflow-y: auto;
+}
+.topBar .option:hover {
+  background-color: #0056b3;
+}
+
+/* Forms Section */
+.formSection {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.formSection form {
+  display: flow;
+  flex-direction: column;
+}
+
+.formSection label {
+  margin-bottom: 5px;
+  font-weight: bold;
+}
+
+.formSection select,
+.formSection input {
+  padding: 5px;
+  margin-bottom: 10px;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  background-color: #1e1e1e;
+  color: white;
+  border-color: #535353;
+}
+
+.formSection button {
+  padding: 5px 10px;
+  background-color: #28a745;
+  color: #fff;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.formSection button:hover {
+  background-color: #218838;
+}
+
+/* .infiniteTable Styles */
+.infiniteTable {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 20px;
+  /* .infiniteTable-layout: fixed; Ensure consistent column widths */
+  word-wrap: break-word; /* Prevent long text from overflowing */
+  border-collapse: collapse;
+  table-layout: fixed;
+  border-bottom: 0.5px;
+}
+.rowOdd {
+  background-color: #2727273e;
+  /* backdrop-filter: blur(10px); */
+  max-height: 135px;
+}
+
+.rowEven {
+  background-color: rgba(64, 64, 64, 0.341);
+  /* backdrop-filter: blur(10px); */
+  max-height: 135px;
+}
+
+.infiniteTable tbody {
+  will-change: transform;
+}
+/* Ensure hover works regardless of alternating colors */
+
+.infiniteTable tbody tr:hover {
+  background-color: #18181872; /* Your desired hover color */
+  color: #fff; /* Ensure text remains readable */
+  border: #dedede7e;
+  /* border-width: 1px; */
+}
+
+.infiniteTable tr {
+  width: 100px;
+  overflow: hidden;
+}
+.infiniteTable th {
+  font-size: 1em;
+  /* background-color: #1d1d1d; */
+}
+.infiniteTable th,
+td {
+  /* border: 0.5px solid #434343; */
+  padding: 25px;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap; /* Prevent text from wrapping */
+  font-size: 1.3em;
+  /* max-width: 0; */
+}
+
+/* First cell in row */
+.infiniteTable td:first-child {
+  border-top-left-radius: 8px;
+  border-bottom-left-radius: 8px;
+}
+
+/* Last cell in row */
+.infiniteTable td:last-child {
+  border-top-right-radius: 8px;
+  border-bottom-right-radius: 8px;
+}
+/* Specifically for the Name column (second column) */
+.infiniteTable td:nth-child(2) {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px; /* Matches your colgroup width */
+}
+/* Header cells */
+.infiniteTable th:first-child {
+  border-top-left-radius: 10px;
+}
+
+.infiniteTable th:last-child {
+  border-top-right-radius: 10px;
+}
+
+.infiniteTable tbody {
+  position: relative;
+}
+
+.linkButton {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  text-decoration: underline;
+}
+.text {
+  text-decoration: underline;
+}
+.text .a {
+  text-decoration: underline;
+}
+.infiniteTable td a {
+  font-size: 1em;
+  /* padding: 15px 25px; */
+  /* background-color: #555; */
+  color: #fff;
+  text-decoration: none;
+  /* border-radius: 10px; */
+  transition: background-color 0.3s, transform 0.2s;
+  display: inline-block;
+  width: 100%; /* Make it full-width for touch targets */
+  text-align: left;
+}
+
+/* a {
     padding: 1px;
   } */
-  .thumbnail {
-    width: auto;
-    height: 100px;
-    object-fit: cover;
-    cursor: pointer;
+.thumbnail {
+  width: auto;
+  height: 100px;
+  object-fit: cover;
+  cursor: pointer;
+}
+
+/* Action Buttons */
+.actionButtons {
+  display: inline-flex;
+  gap: 10px;
+}
+
+.actionButtons a {
+  padding: 5px 5px;
+  background-color: #17a2b8;
+  color: #fff;
+  text-decoration: none;
+  border-radius: 3px;
+  max-width: fit-content;
+}
+
+.actionButtons a.download {
+  background-color: #202020;
+  color: #bbb;
+}
+
+.actionButtons .convert {
+  background-color: #202020;
+  color: #dcdcdc;
+  border-radius: 10px;
+  border: transparent;
+  font-size: medium;
+}
+
+.actionButtons a.stream {
+  background-color: #658d57;
+}
+
+.actionButtons button.delete {
+  padding: 5px 10px;
+  text-decoration: none;
+  background-color: #863232;
+  border-radius: 3px;
+  color: #bbbbbb;
+  border-color: transparent;
+  cursor: pointer;
+}
+
+.actionButtons button:hover {
+  opacity: 0.8;
+}
+.actionButtons a:hover {
+  opacity: 0.8;
+  cursor: pointer;
+}
+
+/* Loading Indicator */
+.loadingSpinner {
+  text-align: center;
+  padding: 20px;
+  font-size: 1.2rem;
+}
+
+/* Error Message */
+.errorMessage {
+  padding: 10px 20px;
+}
+
+/* Modal Styles */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  overflow: hidden;
+}
+
+.closeModal {
+  position: absolute;
+  top: 20px;
+  right: 30px;
+  color: #fff;
+  font-size: 40px;
+  font-weight: bold;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.closeModal:hover {
+  color: #bbb;
+}
+
+/* Modal Content */
+.modalContent {
+  position: relative;
+  /* max-width: 90%; */
+  /* max-height: 90%; */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* background-color: #fff; */
+  padding: 10px;
+  box-sizing: border-box;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.modalMediaContainer {
+  /* max-width: 100%; */
+  /* max-height: 80vh; */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.modalMedia {
+  width: 100%;
+  height: auto;
+  border-radius: 4px;
+  overflow: hidden;
+  object-fit: contain;
+}
+
+/* Previous and Next Buttons */
+.prevBtn,
+.nextBtn {
+  /* position: absolute; */
+  top: 50%;
+  transform: translateY(-50%);
+  background-color: rgba(255, 255, 255, 0.7);
+  border: none;
+  padding: 5px;
+  border-radius: 20%;
+  cursor: pointer;
+  font-size: 24px;
+  transition: background-color 0.3s;
+}
+
+.prevBtn:hover,
+.nextBtn:hover {
+  background-color: rgba(255, 255, 255, 1);
+}
+
+/* Specific Positioning */
+.prevBtn {
+  left: 20px;
+}
+
+.nextBtn {
+  right: 20px;
+}
+
+/* Responsive Behavior */
+@media (max-width: 600px) {
+  .prev-btn,
+  .next-btn {
+    padding: 8px;
+    font-size: 20px;
+    left: 10px;
+    right: 10px;
   }
-  
-  /* Action Buttons */
-  .actionButtons {
-    display: inline-flex;
-    gap: 10px;
-  }
-  
-  .actionButtons a {
-    padding: 5px 10px;
-    background-color: #17a2b8;
-    color: #fff;
-    text-decoration: none;
-    border-radius: 3px;
-  }
-  
-  .actionButtons a.download {
-    background-color: #202020;
-    color: #bbb;
-  }
-  
-  
-  .actionButtons a.stream {
-    background-color: #658d57;
-  }
-  
-  .actionButtons button.delete {
-    padding: 5px 10px;
-    text-decoration: none;
-    background-color: #863232;
-    border-radius: 3px;
-    color: #bbbbbb;
-    border-color: transparent;
-    cursor: pointer; 
+}
+
+/* PIN Modal Styles */
+#pinModal .modalContent {
+  width: 300px;
+  text-align: center;
+}
+
+#pinModal input {
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 10px;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+}
+
+#pinModal button {
+  width: 100%;
+  padding: 10px;
+  background-color: #007bff;
+  color: #fff;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+#pinModal button:hover {
+  background-color: #0056b3;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .form-section {
+    flex-direction: column;
   }
 
-  .actionButtons button:hover {
-    opacity: 0.8;
+  .thumbnail {
+    width: 80px;
+    height: 80px;
   }
-  .actionButtons a:hover {
-    opacity: 0.8;
-    cursor: pointer; 
-  }
-  
-  /* Loading Indicator */
-  .loadingSpinner {
-    text-align: center;
-    padding: 20px;
-    font-size: 1.2rem;
-  }
-  
-  /* Error Message */
-  .errorMessage {
-    padding: 10px 20px;
-  }
-  
-  /* Modal Styles */
-.modal {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.8);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-    overflow: hidden; 
-  }
-  
-  .closeModal {
-    position: absolute;
-    top: 20px;
-    right: 30px;
-    color: #fff;
-    font-size: 40px;
-    font-weight: bold;
-    text-decoration: none;
-    cursor: pointer;
-    
-  }
-  
-  .closeModal:hover {
-    color: #bbb;
-  }
-  
-  /* Modal Content */
+
   .modalContent {
-    position: relative;
-    /* max-width: 90%; */
-    /* max-height: 90%; */
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    /* background-color: #fff; */
-    padding: 10px;
-    box-sizing: border-box;
-    border-radius: 8px;
-    overflow: hidden; 
+    width: 95%;
+    max-width: 500px;
   }
-  
-  .modalMediaContainer {
-    /* max-width: 100%; */
-    /* max-height: 80vh; */
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden; 
-  }
-  
-  .modalMedia {
-    width: 100%; 
-     height: auto;
-    border-radius: 4px;
-    overflow: hidden; 
-    object-fit: contain; 
-  }
-  
-  /* Previous and Next Buttons */
-  .prevBtn,
-  .nextBtn {
-    /* position: absolute; */
-    top: 50%;
-    transform: translateY(-50%);
-    background-color: rgba(255, 255, 255, 0.7);
-    border: none;
-    padding: 5px;
-    border-radius: 20%;
-    cursor: pointer;
-    font-size: 24px;
-    transition: background-color 0.3s;
-  }
-  
-  .prevBtn:hover,
-  .nextBtn:hover {
-    background-color: rgba(255, 255, 255, 1);
-  }
-  
-  /* Specific Positioning */
-  .prevBtn {
-    left: 20px;
-  }
-  
-  .nextBtn {
-    right: 20px;
-  }
-  
-  /* Responsive Behavior */
-  @media (max-width: 600px) {
-    .prev-btn,
-    .next-btn {
-      padding: 8px;
-      font-size: 20px;
-      left: 10px;
-      right: 10px;
-    }
-  }
-  
-  /* PIN Modal Styles */
-  #pinModal .modalContent {
-    width: 300px;
-    text-align: center;
-  }
-  
-  #pinModal input {
-    width: 100%;
-    padding: 10px;
-    margin-bottom: 10px;
-    border: 1px solid #ccc;
-    border-radius: 3px;
-  }
-  
-  #pinModal button {
-    width: 100%;
-    padding: 10px;
-    background-color: #007bff;
-    color: #fff;
-    border: none;
-    border-radius: 3px;
-    cursor: pointer;
-  }
-  
-  #pinModal button:hover {
-    background-color: #0056b3;
-  }
-  
-  /* Responsive adjustments */
-  @media (max-width: 768px) {
-    .form-section {
-      flex-direction: column;
-    }
-  
-    .thumbnail {
-      width: 80px;
-      height: 80px;
-    }
-  
-    .modalContent {
-      width: 95%;
-      max-width: 500px;
-    }
-  }
-  
+}
+
 /* Pagination Styles */
 .pagination {
   display: flex;
@@ -485,15 +533,16 @@
 }
 
 .dropdown {
-  background-color: #333;
+  background-color: #0000007d;
   border: 1px solid #555;
   padding: 15px;
-  border-radius: 5px;
+  border-radius: 10px;
   position: absolute;
   top: 50px;
   right: 10px;
   z-index: 1000;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+  /* box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5); */
+  backdrop-filter: blur(20px);
 }
 
 .dropdown form {
@@ -512,9 +561,10 @@
   margin-bottom: 10px;
   padding: 5px;
   border: 1px solid #444;
-  background-color: #222;
+  background-color: #29032f30;
   color: white;
   border-radius: 5px;
+  backdrop-filter: blur(1px);
 }
 
 .dropdown button {
@@ -572,3 +622,263 @@
   background-color: #444;
 }
 
+/* Mobile First Approach */
+@media (max-width: 768px) {
+  /* Top Bar */
+  .topBar {
+    padding: 10px;
+  }
+  .image-gallery .image-gallery-left-nav,
+  .image-gallery .image-gallery-right-nav {
+    display: none !important; /* Hides both left and right arrows */
+  }
+  .topBar h1 {
+    font-size: 1.2rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 70vw;
+  }
+  .infiniteTable td:nth-child(2) {
+    max-width: 40vw; /* Smaller width for mobile */
+  }
+  /* Search and Filters */
+  .secondRow {
+    flex-direction: column;
+  }
+
+  .searchBar {
+    width: 100%;
+    margin-right: 0;
+    margin-bottom: 10px;
+  }
+
+  .advancedFiltersButton {
+    width: 100%;
+    padding: 12px;
+  }
+
+  /* Table Adjustments */
+  .infiniteTable {
+    display: grid;
+    /* overflow-x: auto; */
+  }
+
+  .infiniteTable th,
+  .infiniteTable td {
+    font-size: 0.9rem;
+    padding: 8px 4px;
+    min-width: 80px; /* Prevent column collapse */
+  }
+
+  /* Hide less important columns on mobile */
+  .infiniteTable th:nth-child(3),
+  .infiniteTable td:nth-child(3), /* Modified Date */
+  .infiniteTable th:nth-child(4),
+  .infiniteTable td:nth-child(4) {
+    /* Created Date */
+    display: none;
+  }
+
+  /* Action buttons */
+  .actionButtons {
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  /* Modal Adjustments */
+  .modalMedia {
+    max-width: 95vw;
+    max-height: 60vh;
+  }
+}
+
+.myGalleryOverlay .image-gallery-fullscreen .image-gallery-slide {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8); /* semi-transparent black */
+  padding-top: 50px;
+  /* z-index: 9999; */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 999999; /* Something extremely large */
+  transform: translateZ(0);
+  backdrop-filter: blur(10px); /* Add blur effect */
+}
+
+video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover; /* or contain */
+}
+
+/* image gallery mods */
+
+.image-gallery {
+  display: flex;
+  flex-direction: column;
+  height: 90%;
+}
+
+/* Slide wrapper grows to fill available space, leaving room for thumbnails */
+.image-gallery-slide-wrapper.image-gallery-thumbnails-bottom {
+  position: relative;
+  flex: 1; /* let it grow in normal mode */
+  height: auto; /* fallback in case flex is not enough */
+}
+
+/* Thumbnails wrapper at bottom, absolute positioning. */
+.image-gallery-thumbnails-wrapper.image-gallery-thumbnails-bottom {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  height: 100px; /* Adjust as desired for normal mode */
+}
+
+/* The slide area should take whatever space is left above the thumbnails. */
+.image-gallery-slide-wrapper.image-gallery-thumbnails-bottom
+  .image-gallery-slides {
+  height: calc(
+    100% - 100px
+  ); /* same height as .image-gallery-thumbnails-wrapper */
+  width: 100%;
+  position: relative;
+}
+
+/* Ensure the actual images or videos can fill that space */
+.image-gallery-slide .image-gallery-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain; /* or 'cover' if you prefer cropping */
+  max-height: none; /* remove default max-height so it can grow */
+}
+
+.image-gallery-thumbnails-wrapper {
+  overflow: hidden; /* okay for the wrapper */
+}
+
+.image-gallery-thumbnails-container {
+  white-space: nowrap; /* typically used to keep thumbs in a row */
+  /* avoid forcing overflow: hidden if you want horizontal scroll */
+}
+
+/* When fullscreen, .fullscreen-modal is added. 
+   We can increase the thumbnail bar size or keep it the same. */
+.image-gallery.fullscreen-modal.image-gallery-thumbnails-bottom
+  .image-gallery-thumbnails-wrapper {
+  height: 150px; /* bigger thumbnails in fullscreen? adjust as needed */
+}
+
+.image-gallery.fullscreen-modal.image-gallery-thumbnails-bottom
+  .image-gallery-slide-wrapper
+  .image-gallery-slides {
+  height: calc(100% - 150px);
+}
+
+.closeButton {
+  position: absolute;
+  top: 10%;
+  right: 40px;
+  z-index: 10000;
+  color: rgba(255, 255, 255, 0.5); /* Semi-transparent white */
+  background: transparent;
+  transition: color 0.3s ease, transform 0.2s ease;
+  border: transparent;
+  cursor: pointer;
+}
+
+.closeButton:hover {
+  color: rgba(255, 255, 255, 1); /* Fully visible white on hover */
+  transform: scale(1.2); /* Slightly enlarge */
+}
+
+.fullscreenButton {
+  position: absolute;
+  top: 90%;
+  right: 40px; /* Move it next to the image */
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  padding: 10px;
+  border-radius: 50%;
+  color: white;
+  font-size: 20px;
+  cursor: pointer;
+  z-index: 1000;
+  transition: transform 0.2s ease;
+}
+
+.fullscreenButton:hover {
+  transform: translateY(-50%) scale(1.1);
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.image-gallery .image-gallery-left-nav,
+.image-gallery .image-gallery-right-nav {
+  display: none !important; /* Hides both left and right arrows */
+}
+/* ============================= */
+/* RESPONSIVE (MOBILE) TWEAKS    */
+/* ============================= */
+
+@media (max-width: 768px) {
+  /* Smaller thumbnail height on mobile, so slides have more space. */
+  .image-gallery-thumbnails-wrapper.image-gallery-thumbnails-bottom {
+    height: 80px;
+  }
+  .image-gallery-slide-wrapper.image-gallery-thumbnails-bottom
+    .image-gallery-slides {
+    height: calc(100% - 80px);
+  }
+
+  .image-gallery.fullscreen-modal.image-gallery-thumbnails-bottom
+    .image-gallery-thumbnails-wrapper {
+    height: 120px;
+  }
+  .image-gallery.fullscreen-modal.image-gallery-thumbnails-bottom
+    .image-gallery-slide-wrapper
+    .image-gallery-slides {
+    height: calc(100% - 120px);
+  }
+}
+
+.customNav {
+  /* Base styles for both arrows */
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+  opacity: 0.7;
+  font-size: 16px; /* control how "tiny" or big the arrows appear */
+  padding: 0.5rem;
+  transition: opacity 0.3s ease;
+  z-index: 9999; /* so it stays above images */
+
+  /* You can change these to position the arrows differently */
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.customNav:hover {
+  opacity: 1; /* get brighter on hover, for example */
+}
+
+.customLeftNav {
+  left: 10px; /* position from left edge */
+}
+
+.customRightNav {
+  right: 10px; /* position from right edge */
+}

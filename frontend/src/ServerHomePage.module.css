@@ -5,18 +5,26 @@
   justify-content: center; /* Center horizontally */
   min-height: 100vh; /* Full viewport height */
   background-color: #1d1d1d;
-  color: white;
+  width: 100%;
+  /* height: 100vh; */
+  justify-content: center;
+  overflow: hidden;
 }
 
 /* Homepage body container */
 .homepageBody {
-  text-align: center;
+  text-align: center; /* Center content inside */
+  backdrop-filter: blur(10px); /* Add blur effect */
+  background-color: rgba(255, 255, 255, 0.053); /* Semi-transparent background */
+  padding: 50px; /* Add some padding */
+  border-radius: 15px; /* : Rounded corners */
 }
 
 /* Title Styling */
 .homepageTitle {
   font-size: 2.5em;
   margin-bottom: 30px;
+  color:rgb(237, 237, 237)
 }
 
 /* Options container */

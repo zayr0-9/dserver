@@ -63,101 +63,99 @@
   }
 }
 
-.container .adminConsoleTable th {
+/* .container .adminConsoleTable th {
   background-color: #f4f4f9;
   font-weight: 600;
-}
-  .container .adminConsoleTable th,
+} */
+/* .container .adminConsoleTable th,
   td {
     padding: 15px;
     text-align: left;
-    /* border-bottom: 1px solid #ddd; */
+    border-bottom: 1px solid #ddd;
+  } */
+
+/* .container .adminConsoleTable tr:hover {
+    background-color: #881919;
+  } */
+
+.statusButton {
+  padding: 10px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.statusPrivate {
+  background-color: grey;
+  color: white;
+}
+
+.statusPublic {
+  background-color: green;
+  color: white;
+}
+
+.uploadLink {
+  display: inline-block;
+  margin-top: 20px;
+  background-color: #333;
+  color: white;
+  padding: 12px 24px;
+  text-decoration: none;
+  border-radius: 5px;
+  font-size: 1rem;
+  text-align: center;
+}
+
+.uploadLink:hover {
+  background-color: #555;
+}
+
+@media (max-width: 768px) {
+  .topBar {
+    flex-direction: column;
+    align-items: flex-start;
   }
 
-  
-  .container .adminConsoleTable tr:hover {
-    background-color: #881919;
+  .topBar h1 {
+    font-size: 1.5rem;
   }
-  
-  .statusButton {
-    padding: 10px;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
+
+  .container .adminConsoleTable {
+    font-size: 0.9rem;
   }
-  
-  .statusPrivate {
-    background-color: grey;
-    color: white;
+
+  .container .adminConsoleTable th,
+  td {
+    padding: 12px;
   }
-  
-  .statusPublic {
-    background-color: green;
-    color: white;
-  }
-  
+
   .uploadLink {
-    display: inline-block;
-    margin-top: 20px;
-    background-color: #333;
-    color: white;
-    padding: 12px 24px;
-    text-decoration: none;
-    border-radius: 5px;
-    font-size: 1rem;
-    text-align: center;
+    font-size: 0.9rem;
+    padding: 10px 20px;
   }
-  
-  .uploadLink:hover {
-    background-color: #555;
+}
+
+@media (max-width: 480px) {
+  .topBar {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 10px;
   }
-  
-  @media (max-width: 768px) {
-    .topBar {
-      flex-direction: column;
-      align-items: flex-start;
-    }
-  
-    .topBar h1 {
-      font-size: 1.5rem;
-    }
-  
-    .container .adminConsoleTable {
-      font-size: 0.9rem;
-    }
-  
-    .container .adminConsoleTable th,
-    td {
-      padding: 12px;
-    }
-  
-    .uploadLink {
-      font-size: 0.9rem;
-      padding: 10px 20px;
-    }
+
+  .topBar h1 {
+    font-size: 1.4rem;
   }
-  
-  @media (max-width: 480px) {
-    .topBar {
-      flex-direction: column;
-      align-items: flex-start;
-      padding: 10px;
-    }
-  
-    .topBar h1 {
-      font-size: 1.4rem;
-    }
-  
-    .container .adminConsoleTable,
-    th,
-    td {
-      font-size: 0.85rem;
-      padding: 10px;
-    }
-  
-    .uploadLink {
-      font-size: 0.85rem;
-      padding: 8px 16px;
-    }
+
+  .container .adminConsoleTable,
+  th,
+  td {
+    font-size: 0.85rem;
+    padding: 10px;
   }
-  
+
+  .uploadLink {
+    font-size: 0.85rem;
+    padding: 8px 16px;
+  }
+}

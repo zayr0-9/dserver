@@ -1,11 +1,33 @@
-.searchBarContainer {
+  .searchBarContainer {
     position: relative;
+    display: inline-block; /* Makes container shrink to fit content */
+    background: transparent; /* Remove any background */
   }
   
+  .searchBarContainer input {
+    width: 300px; /* Set explicit width for the input */
+    padding: 8px 12px;
+    background-color: transparent;
+    border: 1px solid #444;
+    border-radius: 4px;
+    color: white;
+  }
+  
+  .searchBarContainer button {
+    padding: 8px 16px;
+    background-color: #32669e;
+    border: none;
+    border-radius: 4px;
+    color: white;
+    margin-left: 8px;
+    cursor: pointer;
+  }
   .searchResults {
     /* position: absolute; */
-    background-color: #1a1a1a;
+    /* background-color: #1a1a1a; */
     /* border: 1px solid #ccc; */
+    background-color: rgba(64, 64, 64, 0.341); /* Semi-transparent dark grey */
+    backdrop-filter: blur(10px); /* Blur effect */
     margin-top: 4px;
     width: 800px;
     max-height: 1000px;

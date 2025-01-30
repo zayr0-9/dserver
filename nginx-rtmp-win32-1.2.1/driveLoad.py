@@ -17,15 +17,18 @@ def get_local_ip():
         # Create a dummy socket and connect to a non-routable address
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
             # Use a non-routable address to identify the active interface
-            s.connect(("192.168.0.1", 1))  # Common LAN address, no actual connection needed
+            # Common LAN address, no actual connection needed
+            s.connect(("192.168.0.1", 1))
             ip_address = s.getsockname()[0]
         return ip_address
     except Exception as e:
         print(f"Error getting local IP: {e}")
         return "127.0.0.1"  # Fallback to localhost
 
+
 # Example usage
 local_ip = get_local_ip()
+
 
 def get_drives():
     drives = []
@@ -37,7 +40,6 @@ def get_drives():
     return drives
 
 
-
 def generate_nginx_config(drives, output_file, workDrive):
     current_dir = Path(__file__).resolve().parent
     print(f"current_dir{current_dir}")
@@ -47,18 +49,17 @@ def generate_nginx_config(drives, output_file, workDrive):
     static_folder_media = current_dir / '../filetransfer/static/media'
     build_folder_path = current_dir / '../frontend/build/'
     static_folder_path = static_folder_path.resolve()
-    
+
     # Step 3: Convert to POSIX-style path (with forward slashes)
     static_folder_path = static_folder_path.as_posix()
     static_folder_path2 = static_folder_path2.resolve().as_posix()
     static_folder_media = static_folder_media.resolve().as_posix()
     build_folder_path = build_folder_path.resolve().as_posix()
 
-
     with open(output_file, 'w') as f:
         # Write the initial part of the configuration, including the `http` block header
         f.write(
-f"""worker_processes  1;
+            f"""worker_processes  1;
 error_log  logs/error.log debug;
 events {{
     worker_connections  1024;
@@ -76,12 +77,12 @@ rtmp {{
             hls_playlist_length 6s;  # Set the playlist length
             record off;  # Disable recording (optional)
         }}
-        
+
         application hls {{
             live on;
-            hls on;  
-            hls_path temp/hls;  
-            hls_fragment 8s;  
+            hls on;
+            hls_path temp/hls;
+            hls_fragment 8s;
         }}
     }}
 }}
@@ -179,9 +180,18 @@ http {{
             autoindex on;  # Temporarily enable for testing
             try_files $uri $uri/ =404;
             add_header Accept-Ranges bytes;
-            add_header Content-Disposition "attachment; filename=$request_filename";
+            add_header Content-Disposition "attachment; filename*=UTF-8''$arg_filename";
             add_header Cache-Control "no-cache";
             proxy_buffering off;
+        }}
+
+        location /download_zip/ {{
+            proxy_pass http://django_server;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            add_header Content-Disposition "attachment; filename*=UTF-8''$arg_filename";
         }}
 
         location /transfer/thumbnails/ {{

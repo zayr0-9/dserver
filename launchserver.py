@@ -3,10 +3,39 @@ import os
 import sys
 import threading
 import signal
+import platform
+
+
+def create_virtualenv():
+    venv_path = os.path.join(os.getcwd(), 'myvenv')
+
+    # Check if virtual environment already exists
+    if not os.path.exists(venv_path):
+        print("Creating virtual environment...")
+        try:
+            subprocess.run(
+                [sys.executable, "-m", "venv", venv_path], check=True)
+        except subprocess.CalledProcessError as e:
+            print(f"Error creating virtual environment: {e}")
+            sys.exit(1)
+
+    # Determine correct pip path based on OS
+    if platform.system() == "Windows":
+        pip_path = os.path.join(venv_path, 'Scripts', 'pip.exe')
+    else:
+        pip_path = os.path.join(venv_path, 'bin', 'pip')
+
+    # Install requirements
+    print("Installing requirements...")
+    try:
+        subprocess.run([pip_path, "install", "-r",
+                       "requirements.txt"], check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"Error installing requirements: {e}")
+        sys.exit(1)
 
 
 def read_output(name, pipe):
-    # Use a loop to read from the pipe
     while True:
         line = pipe.readline()
         if line:
@@ -20,26 +49,23 @@ def read_output(name, pipe):
 
 
 def main():
+    # Set up virtual environment first
+    create_virtualenv()
+
     processes = []
-    nginx_process = None  # Keep track of nginx separately
+    nginx_process = None
 
     try:
-        # Use the current working directory as the script directory
         script_dir = os.getcwd()
 
-        # set conf
-
-        # Define the relative path to the target script
         print("loading nginx conf")
         script_path = os.path.join("nginx-rtmp-win32-1.2.1", "driveLoad.py")
 
-        # Execute the target script
         try:
             subprocess.run(["python", script_path], check=True)
         except subprocess.CalledProcessError as e:
             print(f"Error occurred while running the script: {e}")
 
-        # Start nginx
         print("Starting Nginx...")
         nginx_dir = os.path.join(script_dir, 'nginx-rtmp-win32-1.2.1')
         print(f"nginx_dir = {nginx_dir}")
@@ -51,49 +77,49 @@ def main():
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE
         )
-        # Not adding nginx_process to processes list since we'll stop it differently
 
-         # Start waitress-serve
         print("Starting waitress-serve...")
+        # Get correct Python path from virtual environment
+        if platform.system() == "Windows":
+            python_path = os.path.join(
+                script_dir, 'myvenv', 'Scripts', 'python.exe')
+        else:
+            python_path = os.path.join(script_dir, 'myvenv', 'bin', 'python')
+
         waitress_command = [
-            os.path.join(script_dir, 'myvenv', 'Scripts', 'python.exe'),
+            python_path,
             '-m', 'waitress', '--port=8000', 'filetransfer.wsgi:application'
         ]
         waitress_process = subprocess.Popen(
             waitress_command,
             cwd=os.path.join(script_dir, 'filetransfer'),
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE  # Changed to stderr for error output
+            stderr=subprocess.PIPE
         )
         processes.append(('waitress', waitress_process))
-        
+
         print("\nServers are running.")
         print("Press any key to stop the servers.")
 
-        # Start threads to read outputs
         threads = []
         for name, proc in processes:
             t = threading.Thread(target=read_output, args=(name, proc.stdout))
-            t.daemon = True  # Allows threads to exit when main program exits
+            t.daemon = True
             t.start()
             threads.append(t)
 
-        # Wait for user input to stop the servers
         while True:
             try:
                 if any(proc.poll() is not None for _, proc in processes):
-                    # If any process has terminated, exit the loop
                     print("\nOne of the servers has stopped unexpectedly.")
                     break
-                # Check for user input
                 if sys.platform == 'win32':
                     import msvcrt
                     if msvcrt.kbhit():
-                        msvcrt.getch()  # Consume the key press
+                        msvcrt.getch()
                         print("\nStopping servers...")
                         break
                 else:
-                    # For Unix-like systems
                     import select
                     if select.select([sys.stdin], [], [], 1)[0]:
                         sys.stdin.readline()
@@ -103,7 +129,6 @@ def main():
                 print("\nStopping servers...")
                 break
 
-        # Terminate all processes
         for name, proc in processes:
             if proc.poll() is None:
                 print(f"Stopping {name}...")
@@ -113,14 +138,12 @@ def main():
                 except subprocess.TimeoutExpired:
                     proc.kill()
 
-        # Stop nginx
         if nginx_process and nginx_process.poll() is None:
             print("Stopping nginx...")
             nginx_stop_command = [nginx_exe, '-s', 'stop']
             subprocess.run(nginx_stop_command, cwd=nginx_dir)
             nginx_process.wait(timeout=5)
 
-        # Wait for threads to finish
         for t in threads:
             t.join()
 
@@ -129,11 +152,9 @@ def main():
 
     except Exception as e:
         print(f"An error occurred: {e}")
-        # Terminate all processes in case of an error
         for name, proc in processes:
             if proc.poll() is None:
                 proc.terminate()
-        # Stop nginx
         if nginx_process and nginx_process.poll() is None:
             print("Stopping nginx due to error...")
             nginx_stop_command = [nginx_exe, '-s', 'stop']
