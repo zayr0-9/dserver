@@ -1,5 +1,6 @@
 
 from math import ceil
+from PIL import Image
 from threading import Thread
 import glob
 from django.http import JsonResponse
@@ -13,7 +14,7 @@ from django.views.decorators.http import require_POST
 import hashlib
 import subprocess
 import json
-from PIL import Image
+# from PIL import Image
 import threading
 from urllib.parse import quote
 from transfer.models import FileSearchMetadata, Movie, FileLock, FileTypeCategory
@@ -35,8 +36,9 @@ from django.contrib.auth import authenticate, login, logout
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET
 from .models import FileMetadata
-from rapidfuzz import process, fuzz, utils
+# from rapidfuzz import process, fuzz, utils
 from concurrent.futures import ThreadPoolExecutor
+import shutil
 
 
 # logger = logging.getLogger(__name__)
@@ -309,7 +311,7 @@ def get_drives_api(request):
 
 
 def get_drives():
-    print("Fetching drives")
+    # print("Fetching drives")
     drives = []
     bitmask = windll.kernel32.GetLogicalDrives()
 
@@ -356,7 +358,7 @@ def delete_item(request):
         if os.path.isfile(full_path):
             os.remove(full_path)
         elif os.path.isdir(full_path):
-            os.rmdir(full_path)
+            shutil.rmtree(full_path)
         else:
             return JsonResponse({'error': 'Unknown file type'}, status=400)
         return JsonResponse({'success': True})
@@ -526,7 +528,7 @@ def get_directory_items(full_path, show_hidden_files, path, page, page_size):
                 'modified': datetime.datetime.fromtimestamp(stat.st_mtime).isoformat(),
                 'created': datetime.datetime.fromtimestamp(stat.st_ctime).isoformat(),
                 'relative_path': relative_path,
-                'thumb_path': entry.path,
+                'full_path': entry.path,
                 'is_video': is_video,
                 'is_text': is_text_file
             }
@@ -540,7 +542,7 @@ def generate_thumbnail(item):
     file_ext = os.path.splitext(item['name'])[1].lower()
 
     try:
-        file_identifier = f"{item['thumb_path']}_{thumbnail_size}"
+        file_identifier = f"{item['full_path']}_{thumbnail_size}"
         thumbnail_hash = hashlib.md5(
             file_identifier.encode('utf-8')).hexdigest()
         thumbnail_ext = '.png' if file_ext == '.png' else '.jpg'
@@ -553,7 +555,7 @@ def generate_thumbnail(item):
                 item['thumbnail'] = thumbnail_filename  # Skip generation
                 return
             # generate thumbnail for image
-            with Image.open(item['thumb_path']) as image:
+            with Image.open(item['full_path']) as image:
                 image.thumbnail((thumbnail_size, thumbnail_size))
                 image_format = 'PNG' if image.mode == 'RGBA' else 'JPEG'
                 image.save(thumbnail_path, image_format)
@@ -601,7 +603,8 @@ def choose_hwaccel_method(preferred_order=None):
     order, or None if none is available.
 
     Example usage:
-      hwaccel = choose_hwaccel_method(['cuda', 'vaapi', 'qsv', 'dxva2', 'videotoolbox'])
+      hwaccel = choose_hwaccel_method(
+          ['cuda', 'vaapi', 'qsv', 'dxva2', 'videotoolbox'])
       if hwaccel:
           # build ffmpeg command with hwaccel
       else:
@@ -630,7 +633,7 @@ def choose_hwaccel_method(preferred_order=None):
 
 
 def generate_video_thumbnail(item, thumbnail_size=100):
-    file_identifier = f"{item['thumb_path']}_{thumbnail_size}"
+    file_identifier = f"{item['full_path']}_{thumbnail_size}"
     thumbnail_hash = hashlib.md5(file_identifier.encode('utf-8')).hexdigest()
     thumbnail_filename = f"thumb_{thumbnail_hash}.jpg"
     thumbnail_path = os.path.join(temp_dir, thumbnail_filename)
@@ -646,7 +649,7 @@ def generate_video_thumbnail(item, thumbnail_size=100):
     base_args = [
         'ffmpeg',
         '-y',             # Overwrite output if exists
-        '-i', item['thumb_path'],  # Input video file
+        '-i', item['full_path'],  # Input video file
         '-ss', '00:00:10',         # Timestamp to grab frame
         '-vframes', '1',           # Extract one frame
         '-vf',  f'scale=-1:{thumbnail_size}',  # Resize
@@ -780,13 +783,13 @@ def file_list_api(request, drive_letter):
     items = list(items_generator)
     process_thumbnails(items)
     filtered_items = filter_items(items, params)
-    sorted_items = sort_items(
-        filtered_items, params['sort_by'], params['sort_dir'])
+    # sorted_items = sort_items(
+    #     filtered_items, params['sort_by'], params['sort_dir'])
     # paginated_items, total_items = paginate_items(
     #     sorted_items, params['page'], params['page_size'])
     # logger.debug(paginated_items)
     return JsonResponse({
-        'items': sorted_items,
+        'items': filtered_items,
         'pagination': {
             'current_page': params['page'],
             'page_size': params['page_size'],
@@ -807,19 +810,19 @@ def get_latest_mtime(directory):
 
 
 def download_zip(request):
-    logger.debug("download_zip view called.")
+    # logger.debug("download_zip view called.")
     relative_path = request.GET.get('path', '')
     base_dir = request.GET.get('base_dir')
-    logger.debug(
-        f"Received base_dir: {base_dir}, relative_path: {relative_path}")
+    # logger.debug(
+    #     f"Received base_dir: {base_dir}, relative_path: {relative_path}")
 
     # Adjust base_dir for Windows drive letters
     if os.name == 'nt' and len(base_dir) == 1 and base_dir.isalpha():
         base_dir = base_dir + ':\\'
-    logger.debug(f"Adjusted base_dir: {base_dir}")
+    # logger.debug(f"Adjusted base_dir: {base_dir}")
 
     full_path = os.path.normpath(os.path.join(base_dir, relative_path))
-    logger.debug(f"Constructed full_path: {full_path}")
+    # logger.debug(f"Constructed full_path: {full_path}")
 
     # Prevent directory traversal attacks
     if not full_path.startswith(os.path.normpath(base_dir)):
@@ -847,7 +850,7 @@ def download_zip(request):
         subprocess.check_call(
             ['7z', 'a', '-tzip', '-mx=0', zip_path, full_path]
         )
-        logging.info(f"Zip file created at {zip_path}")
+        # logging.info(f"Zip file created at {zip_path}")
     except subprocess.CalledProcessError as e:
         logging.error(f"Error creating zip file: {e}")
         return HttpResponse("Error creating zip file.", status=500)
@@ -876,7 +879,10 @@ def download_zip(request):
             return HttpResponse("Error creating zip file.", status=500)
 
     # Construct the URL that Nginx will serve
-    zip_url = f"/temparchive/{quote(zip_filename)}"
+    zip_url = (
+        f"/temparchive/{quote(zip_filename)}"
+        f"?filename={quote(zip_filename)}"
+    )
 
     # Redirect the user to the zip file URL for Nginx to handle byte-range requests
     return HttpResponseRedirect(zip_url)
@@ -885,93 +891,344 @@ def download_zip(request):
 # @login_required
 
 
-def gpu_available():
-    # Implement logic to check if GPU encoding is available
-    # For example, check if 'hevc_nvenc' is in FFmpeg encoders
-    result = subprocess.run(
-        ['ffmpeg', '-encoders'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    return 'hevc_nvenc' in result.stdout
+# def gpu_available():
+#     # Implement logic to check if GPU encoding is available
+#     # For example, check if 'hevc_nvenc' is in FFmpeg encoders
+#     result = subprocess.run(
+#         ['ffmpeg', '-encoders'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+#     return 'h264_nvenc' in result.stdout
 
 
 # @require_GET
-@require_GET
+# def stream_hls(request, drive_letter, path):
+#     logger.debug(f"Entering Stream HLS {drive_letter}, {path}")
+#     base_dir = drive_letter + ':\\' if os.name == 'nt' else '/' + drive_letter
+#     relative_path = unquote(path)
+#     full_path = os.path.normpath(os.path.join(base_dir, relative_path))
+
+#     # Security checks
+#     if not os.path.isfile(full_path):
+#         return JsonResponse({'error': 'File does not exist'}, status=404)
+
+#     if not full_path.startswith(os.path.abspath(base_dir)):
+#         return JsonResponse({'error': 'Invalid path'}, status=400)
+
+#     # Define HLS output directory
+#     hls_output_base_dir = 'D:/temphls'
+#     video_identifier = os.path.basename(full_path)
+#     hls_output_dir = os.path.join(hls_output_base_dir, video_identifier)
+#     os.makedirs(hls_output_dir, exist_ok=True)
+
+#     hls_playlist = os.path.normpath(os.path.join(hls_output_dir, 'index.m3u8'))
+#     # logger.debug(f"Generating HLS chunks at {hls_output_dir}, {hls_playlist}")
+
+#     ffmpeg_command = [
+#         'ffmpeg',
+#         '-y',
+#         '-i', full_path,
+#         '-c:v', 'h264_nvenc' if gpu_available() else 'libx264',
+#         '-preset', 'fast',
+#         '-profile:v', 'high',
+#         '-level:v', '4.1',
+#         '-pix_fmt', 'yuv420p',  # Ensure 8-bit color depth
+#         '-c:a', 'aac',
+#         '-b:a', '128k',
+#         '-ac', '2',  # Downmix to stereo if necessary
+#         '-hls_time', '4',
+#         '-hls_list_size', '0',
+#         '-hls_flags', 'delete_segments',  # Removed 'append_list'
+#         '-hls_playlist_type', 'vod',     # Changed to 'vod'
+#         '-f', 'hls',
+#         hls_playlist
+#     ]
+
+#     def run_ffmpeg():
+#         process = subprocess.Popen(
+#             ffmpeg_command,
+#             stdout=subprocess.PIPE,
+#             stderr=subprocess.PIPE,
+#             creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+#         )
+#         stderr, _ = process.communicate()
+#         if process.returncode != 0:
+#             error_message = stderr.decode('utf-8')
+#             logger.error(f'FFmpeg error: {error_message}')
+
+#     thread = Thread(target=run_ffmpeg)
+#     thread.daemon = True
+#     thread.start()
+
+#     # Wait for the playlist and initial segments to be created
+#     max_wait = 30  # seconds
+#     waited = 0
+#     while (not os.path.exists(hls_playlist) or len(glob.glob(os.path.join(hls_output_dir, '*.ts'))) < 2) and waited < max_wait:
+#         time.sleep(30)
+#         waited += 1
+
+#     if not os.path.exists(hls_playlist):
+#         logger.error('Error generating HLS playlist within timeout')
+#         return JsonResponse({'error': 'Error generating HLS playlist'}, status=500)
+
+#     # Return the playlist URL to the client
+#     playlist_url = f'/hls/{video_identifier}/index.m3u8'
+#     response_data = {
+#         'playlist_url': playlist_url,
+#         'video_filename': video_identifier,
+#     }
+#     logger.debug(f"Returning playlist URL: {playlist_url}")
+#     return JsonResponse(response_data)
+
 def stream_hls(request, drive_letter, path):
-    # logger.debug(f"Entering Stream HLS {drive_letter}, {path}")
-    base_dir = drive_letter + ':\\' if os.name == 'nt' else '/' + drive_letter
+    logger.debug(f"Entering Stream HLS {drive_letter}, {path}")
+
+    # Construct input path
+    base_dir = f"{drive_letter}:\\" if os.name == 'nt' else f"/{drive_letter}"
     relative_path = unquote(path)
     full_path = os.path.normpath(os.path.join(base_dir, relative_path))
 
-    # Security checks
+    # Validate input path
     if not os.path.isfile(full_path):
         return JsonResponse({'error': 'File does not exist'}, status=404)
 
-    if not full_path.startswith(os.path.abspath(base_dir)):
-        return JsonResponse({'error': 'Invalid path'}, status=400)
+    # Create output directory
+    hls_output_base_dir = 'D:/temphls'
+    video_name = os.path.splitext(os.path.basename(full_path))[0]
+    hls_output_dir = os.path.join(
+        hls_output_base_dir, video_name).replace('\\', '/')
 
-    # Define HLS output directory
-    hls_output_base_dir = 'D:/temp_hls'
-    video_identifier = os.path.basename(full_path)
-    hls_output_dir = os.path.join(hls_output_base_dir, video_identifier)
-    os.makedirs(hls_output_dir, exist_ok=True)
+    # 2. Add explicit permissions setting
+    try:
+        os.makedirs(hls_output_dir, exist_ok=True)
+        if os.name == 'nt':
+            subprocess.run(
+                f'icacls "{hls_output_dir}" /grant Everyone:(F)', shell=True)
+    except Exception as e:
+        logger.error(f"Directory error: {str(e)}")
+        return JsonResponse({'error': 'Server configuration error'}, status=500)
 
-    hls_playlist = os.path.normpath(os.path.join(hls_output_dir, 'index.m3u8'))
-    # logger.debug(f"Generating HLS chunks at {hls_output_dir}, {hls_playlist}")
-
+    # 3. Simplify FFmpeg command with explicit path formatting
     ffmpeg_command = [
         'ffmpeg',
         '-y',
         '-i', full_path,
-        '-c:v', 'h264_nvenc' if gpu_available() else 'libx264',
-        '-preset', 'fast',
-        '-profile:v', 'high',
-        '-level:v', '4.1',
-        '-pix_fmt', 'yuv420p',  # Ensure 8-bit color depth
+        '-c:v', 'h264_nvenc',  # Use NVIDIA NVENC for hardware encoding
+        '-preset', 'p7',       # NVIDIA-specific preset (p7 is the fastest)
+        '-profile:v', 'high',  # High profile for better quality
+        '-b:v', '5M',          # Bitrate control (adjust based on your needs)
         '-c:a', 'aac',
-        '-b:a', '128k',
-        '-ac', '2',  # Downmix to stereo if necessary
-        '-hls_time', '4',
-        '-hls_list_size', '0',
-        '-hls_flags', 'delete_segments',  # Removed 'append_list'
-        '-hls_playlist_type', 'vod',     # Changed to 'vod'
+        '-b:a', '128k',        # Audio bitrate
         '-f', 'hls',
-        hls_playlist
+        '-hls_time', '4',      # Segment duration
+        '-hls_list_size', '0',  # Unlimited playlist size
+        '-hls_segment_filename', f'{hls_output_dir}/segment_%03d.ts',
+        f'{hls_output_dir}/playlist.m3u8'
     ]
 
-    def run_ffmpeg():
-        process = subprocess.Popen(
+    # Run FFmpeg synchronously for debugging
+    try:
+        process = subprocess.run(
             ffmpeg_command,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+            creationflags=subprocess.CREATE_NO_WINDOW,
+            timeout=90  # Fail fast for debugging
         )
-        stderr, _ = process.communicate()
-        if process.returncode != 0:
-            error_message = stderr.decode('utf-8')
-            logger.error(f'FFmpeg error: {error_message}')
+    except subprocess.TimeoutExpired:
+        logger.error("FFmpeg timed out during initial processing")
+        return JsonResponse({'error': 'Encoding timeout'}, status=500)
 
-    thread = Thread(target=run_ffmpeg)
-    thread.daemon = True
-    thread.start()
+    # Check results
+    if process.returncode != 0:
+        error_log = process.stderr.decode('utf-8')
+        logger.error(f"FFmpeg failed: {error_log}")
+        return JsonResponse({'error': 'Video processing failed'}, status=500)
 
-    # Wait for the playlist and initial segments to be created
-    max_wait = 30  # seconds
-    waited = 0
-    while (not os.path.exists(hls_playlist) or len(glob.glob(os.path.join(hls_output_dir, '*.ts'))) < 2) and waited < max_wait:
-        time.sleep(30)
-        waited += 1
+    # if not os.path.exists(hls_playlist):
+    #     logger.error("No playlist generated despite successful FFmpeg exit")
+    #     return JsonResponse({'error': 'Playlist generation failed'}, status=500)
 
-    if not os.path.exists(hls_playlist):
-        logger.error('Error generating HLS playlist within timeout')
-        return JsonResponse({'error': 'Error generating HLS playlist'}, status=500)
+    # Return successful response
+    playlist_url = f'/hls/{video_name}/playlist.m3u8'
+    return JsonResponse({'playlist_url': playlist_url})
 
-    # Return the playlist URL to the client
-    playlist_url = f'/hls/{video_identifier}/index.m3u8'
-    response_data = {
-        'playlist_url': playlist_url,
-        'video_filename': video_identifier,
+
+# def convert_for_stream(request):
+#     quality_options = {
+#         'original': None,
+#         'low': '100k',
+#         'medium': '6000k',
+#         'high': '12000k',
+#         'ultra': '17000k'
+#     }
+#     speed_options = {
+#         'slow': 'veryslow',
+#         'medium': 'medium',
+#         'fast': 'fast',
+#         'ultrafast': 'ultrafast'
+#     }
+#     relative_path = request.GET.get("path", "")
+#     drive_letter = request.GET.get("base_dir", "")
+#     quality = request.GET.get("quality", "high")  # Use key, not bitrate
+#     speed = request.GET.get("speed", "slow")
+
+#     # Validate quality/speed options
+#     if quality not in quality_options:
+#         return JsonResponse({
+#             "status": "error",
+#             "message": f"Invalid quality option. Choose from: {list(quality_options.keys())}"
+#         }, status=400)
+#     if speed not in speed_options:
+#         return JsonResponse({
+#             "status": "error",
+#             "message": f"Invalid speed option. Choose from: {list(speed_options.keys())}"
+#         }, status=400)
+
+#     # Construct paths
+#     base_dir = f"{drive_letter}:\\" if os.name == 'nt' else f"/{drive_letter}"
+#     relative_path = unquote(relative_path)
+#     full_path = os.path.normpath(os.path.join(base_dir, relative_path))
+
+#     # Create output path with .mp4 extension
+#     output_dir = os.path.dirname(full_path)
+#     output_filename = f"""{os.path.splitext(os.path.basename(full_path))[
+#         0]}_converted.mp4"""
+#     output_path = os.path.join(output_dir, output_filename)
+#     os.makedirs(output_dir, exist_ok=True)  # Ensure directory exists
+
+#     ffmpeg_cmd = ['ffmpeg', '-i', full_path]
+
+#     # Video encoding options (skip if quality is 'original')
+#     if quality != 'original':
+#         ffmpeg_cmd.extend([
+#             '-c:v', 'h264_nvenc',
+#             '-b:v', quality_options[quality],
+#             '-preset', speed_options[speed],
+#             '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2',
+#         ])
+#     else:
+#         ffmpeg_cmd.extend(['-c:v', 'copy'])
+
+#     # Audio and streaming options
+#     ffmpeg_cmd.extend([
+#         '-c:a', 'aac',
+#         '-b:a', '128k',
+#         '-movflags', '+faststart',
+#         output_path  # Add output path with .mp4 extension
+#     ])
+
+#     # Run FFmpeg
+#     try:
+#         subprocess.run(ffmpeg_cmd, check=True)
+#         logger.debug(f"Conversion successful: {output_path}")
+#         return JsonResponse({
+#             "status": "success",
+#             "message": "Conversion completed successfully.",
+#             "output_path": output_path
+#         })
+#     except subprocess.CalledProcessError as e:
+#         logger.error(f"Error during conversion: {e}")
+#         return JsonResponse({
+#             "status": "error",
+#             "message": f"Error during conversion: {str(e)}"
+#         }, status=500)
+#     except Exception as e:
+#         logger.error(f"Unexpected error: {e}")
+#         return JsonResponse({
+#             "status": "error",
+#             "message": f"Unexpected error: {str(e)}"
+#         }, status=500)
+def convert_for_stream(request):
+    quality_options = {
+        'original': None,
+        'low': '100k',
+        'medium': '6000k',
+        'high': '12000k',
+        'ultra': '17000k'
     }
-    # logger.debug(f"Returning playlist URL: {playlist_url}")
-    return JsonResponse(response_data)
+    speed_options = {
+        'slow': 'veryslow',
+        'medium': 'medium',
+        'fast': 'fast',
+        'ultrafast': 'ultrafast'
+    }
+    relative_path = request.GET.get("path", "")
+    drive_letter = request.GET.get("base_dir", "")
+    quality = request.GET.get("quality", "high")
+    speed = request.GET.get("speed", "slow")
+
+    # Validate quality/speed options
+    if quality not in quality_options:
+        return JsonResponse({
+            "status": "error",
+            "message": f"Invalid quality option. Choose from: {list(quality_options.keys())}"
+        }, status=400)
+    if speed not in speed_options:
+        return JsonResponse({
+            "status": "error",
+            "message": f"Invalid speed option. Choose from: {list(speed_options.keys())}"
+        }, status=400)
+
+    # Construct paths
+    base_dir = f"{drive_letter}:\\" if os.name == 'nt' else f"/{drive_letter}"
+    relative_path = unquote(relative_path)
+    full_path = os.path.normpath(os.path.join(base_dir, relative_path))
+
+    # Create output path with .mp4 extension
+    output_dir = os.path.dirname(full_path)
+    output_filename = f"""{os.path.splitext(os.path.basename(full_path))[
+        0]}_converted.mp4"""
+    output_path = os.path.join(output_dir, output_filename)
+    os.makedirs(output_dir, exist_ok=True)
+
+    ffmpeg_cmd = ['ffmpeg', '-i', full_path]
+
+    # Video encoding options
+    if quality != 'original':
+        ffmpeg_cmd.extend([
+            '-c:v', 'libx264',  # Changed to software encoder for better compatibility
+            '-b:v', quality_options[quality],
+            '-preset', speed_options[speed],
+            '-vf', (
+                'scale=trunc(iw/2)*2:trunc(ih/2)*2,'  # Ensure even dimensions
+                'zscale=transfer=linear,'  # Convert to linear color space
+                'tonemap=tonemap=hable:desat=0,'  # HDR to SDR tonemapping
+                'zscale=transfer=bt709,'  # Convert to BT.709 color space
+                'format=yuv420p'  # 8-bit output
+            ),
+        ])
+    else:
+        ffmpeg_cmd.extend(['-c:v', 'copy'])
+
+    # Audio and streaming options
+    ffmpeg_cmd.extend([
+        '-c:a', 'aac',
+        '-b:a', '192k',  # Increased audio bitrate
+        '-ac', '2',  # Downmix to stereo
+        '-movflags', '+faststart',  # MP4 streaming optimization
+        output_path
+    ])
+
+    # Run FFmpeg
+    try:
+        subprocess.run(ffmpeg_cmd, check=True)
+        logger.debug(f"Conversion successful: {output_path}")
+        return JsonResponse({
+            "status": "success",
+            "message": "Conversion completed successfully.",
+            "output_path": output_path
+        })
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Error during conversion: {e}")
+        return JsonResponse({
+            "status": "error",
+            "message": f"Error during conversion: {str(e)}"
+        }, status=500)
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}")
+        return JsonResponse({
+            "status": "error",
+            "message": f"Unexpected error: {str(e)}"
+        }, status=500)
 
 
 def download_file(request, path, filename):
@@ -1193,7 +1450,8 @@ def video_list(request):
         # Get all public directories from the Directory model and normalize paths
         public_dirs = Directory.objects.values_list('path', flat=True)
         public_dirs = [str(Path(path).resolve())
-                       for path in public_dirs]  # Normalize with Path.resolve()
+                       # Normalize with Path.resolve()
+                       for path in public_dirs]
 
         # Log the list of normalized public directories
         print("Normalized public directories:", public_dirs)
