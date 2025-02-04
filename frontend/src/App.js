@@ -8,6 +8,7 @@ import FileEditor from './Editor';
 import axios from 'axios';
 import VideoPlayer from './VideoPlayer';
 import AdminConsole from './AdminConsole';
+import Terminal from './Terminal';
 // import AdminPage
 function App() {
   useEffect(() => {
@@ -46,6 +47,7 @@ function App() {
         <Route path="/edit/:driveLetter/*" element={<FileEditor />} />
         <Route path="/video-player/:driveLetter/*" element={<VideoPlayer />} />
         <Route path="/admin-console/" element={<AdminConsole />} />
+        <Route path="/terminal/" element={<Terminal />} />
         {/* Define route for other components here*/}
         {/* <Route path="/theatre-mode" element={TheatreMode} />
         <Route path="/admin" element={AdminPage} /> */}

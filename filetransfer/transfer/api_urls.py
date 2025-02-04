@@ -24,6 +24,7 @@ urlpatterns = [
     path('admin/console/', views.admin_console_api, name='admin_console_api'),
     path("update-drive-letter/", views.update_drive_letter,
          name="update_drive_letter"),
-    path("convert-for-stream/", views.convert_for_stream, name="convert_for_stream")
-
+    path("convert-for-stream/", views.convert_for_stream,
+         name="convert_for_stream"),
+    path("terminal/", views.terminal, name="terminal"),
 ]

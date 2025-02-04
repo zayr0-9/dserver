@@ -1,6 +1,7 @@
 
 from math import ceil
 from PIL import Image
+import pillow_heif
 from threading import Thread
 import glob
 from django.http import JsonResponse
@@ -50,7 +51,7 @@ ADMIN_PIN = "12345"
 
 logger = logging.getLogger(__name__)
 FILE_TYPES = {
-    'images': ['.jpg', '.jpeg', '.png', '.bmp', '.tiff'],
+    'images': ['.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.heic'],
     'videos': ['.mp4', '.avi', '.mov', '.webm', '.mkv', '.gif'],
     'documents': ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.txt', '.log', '.txt', '.py', '.js', '.html', '.css',
                   '.json', '.md', '.java', '.c', '.cpp'],
@@ -555,7 +556,12 @@ def generate_thumbnail(item):
                 item['thumbnail'] = thumbnail_filename  # Skip generation
                 return
             # generate thumbnail for image
+            pillow_heif.register_heif_opener()
+
             with Image.open(item['full_path']) as image:
+                if image.mode not in ('L', 'RGB', 'RGBA'):
+                    image = image.convert('RGB')
+
                 image.thumbnail((thumbnail_size, thumbnail_size))
                 image_format = 'PNG' if image.mode == 'RGBA' else 'JPEG'
                 image.save(thumbnail_path, image_format)
@@ -1521,3 +1527,21 @@ def category_delete(request, pk):
         category.delete()
         return redirect('category_list')
     return render(request, 'serveradmin/category_confirm_delete.html', {'category': category})
+
+
+@csrf_exempt
+def terminal(request):
+    if request.method == "POST":
+        # logger.debug("running terming command")
+        data = json.loads(request.body)
+        command = data.get("command", "").strip()
+
+        result = subprocess.run(command, shell=True,
+                                capture_output=True, text=True)
+        print("command ", request.POST.get("command", ""))
+        print("Output: ", result.stdout)
+        print("Errors (if any): ", result.stderr)
+
+        return JsonResponse({'output': result.stdout,
+                            'error': result.stderr})
+    return JsonResponse({"error": "Only POST requests are allowed"}, status=405)

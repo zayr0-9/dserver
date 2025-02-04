@@ -21,8 +21,8 @@ const ServerHomePage = () => {
         minWidth: 200.0,
         scale: 1.0,
         scaleMobile: 1.0,
-        color: 0x3fc6ff, // Your custom color
-        backgroundColor: 0x23153c, // Your custom background
+        color: 0xf1c232, // Your custom color
+        backgroundColor: '#0E0612', // Your custom background
         points: 10, // Number of points
         maxDistance: 0, // Max connection distance
         spacing: 15, // Space between points
@@ -51,6 +51,9 @@ const ServerHomePage = () => {
           </button>
           <button className={styles.option}>
             <Link to="/admin-console">Admin Console</Link>
+          </button>
+          <button className={styles.option}>
+            <Link to="/terminal">Terminal</Link>
           </button>
         </div>
       </div>
